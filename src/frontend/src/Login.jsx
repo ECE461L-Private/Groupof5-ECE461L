@@ -18,7 +18,7 @@ function Login() {
 
         // TODO: call backend API to authenticate
         console.log('Logging in with', userid, password)
-        alert('Login successful! (placeholder)')
+        navigate('/dashboard')
     }
 
     return (
