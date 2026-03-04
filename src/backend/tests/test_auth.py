@@ -1,62 +1,114 @@
 """
-Dummy tests for user authentication logic.
-These are placeholder tests that will be updated once the auth module is built.
+Tests for the auth blueprint (/auth).
+
+Uses Flask's test client to send real HTTP requests to the login
+and add_user endpoints and validates status codes, JSON structure,
+and response content.
 """
 
 import pytest
 
 
-class TestUsernameValidation:
+class TestLoginEndpoint:
+    """Tests for POST /auth/login."""
 
-    # Checks that a valid username is accepted
-    def test_valid_username(self):
-        username = "shaunak_k"
-        assert isinstance(username, str)
-        assert len(username) >= 3
+    def test_login_returns_200(self, client):
+        """A valid login request should return HTTP 200."""
+        resp = client.post("/auth/login", json={
+            "username": "testuser",
+            "password": "testpass123",
+        })
+        assert resp.status_code == 200
 
-    # Checks that an empty username is rejected
-    def test_empty_username_rejected(self):
-        username = ""
-        assert len(username) < 3
+    def test_login_returns_json(self, client):
+        """The response should be valid JSON."""
+        resp = client.post("/auth/login", json={
+            "username": "testuser",
+            "password": "testpass123",
+        })
+        data = resp.get_json()
+        assert data is not None
 
-    # Checks that a username with special characters is flagged
-    def test_special_characters_rejected(self):
-        username = "user@name!"
-        assert not username.isalnum()
+    def test_login_has_status_ok(self, client):
+        """The JSON body should contain status == 'ok'."""
+        resp = client.post("/auth/login", json={
+            "username": "testuser",
+            "password": "testpass123",
+        })
+        data = resp.get_json()
+        assert data["status"] == "ok"
+
+    def test_login_message_contains_username(self, client):
+        """The response message should echo back the submitted username."""
+        resp = client.post("/auth/login", json={
+            "username": "alice",
+            "password": "s3cret",
+        })
+        data = resp.get_json()
+        assert "alice" in data["message"]
+
+    def test_login_wrong_method_returns_405(self, client):
+        """GET requests to /auth/login should be rejected with 405."""
+        resp = client.get("/auth/login")
+        assert resp.status_code == 405
+
+    def test_login_content_type_is_json(self, client):
+        """Response Content-Type should be application/json."""
+        resp = client.post("/auth/login", json={
+            "username": "testuser",
+            "password": "pass",
+        })
+        assert resp.content_type == "application/json"
 
 
-class TestPasswordValidation:
+class TestAddUserEndpoint:
+    """Tests for POST /auth/add_user."""
 
-    # Checks that a strong password meets length requirement
-    def test_password_long_enough(self):
-        password = "MyStr0ngPass"
-        assert len(password) >= 8
+    def test_add_user_returns_200(self, client):
+        """A valid add_user request should return HTTP 200."""
+        resp = client.post("/auth/add_user", json={
+            "username": "newuser",
+            "password": "newpass123",
+        })
+        assert resp.status_code == 200
 
-    # Checks that a short password is rejected
-    def test_short_password_rejected(self):
-        password = "Ab1"
-        assert len(password) < 8
+    def test_add_user_returns_json(self, client):
+        """The response should be valid JSON."""
+        resp = client.post("/auth/add_user", json={
+            "username": "newuser",
+            "password": "newpass123",
+        })
+        data = resp.get_json()
+        assert data is not None
 
-    # Checks that a password contains at least one digit
-    def test_password_has_digit(self):
-        password = "Password1"
-        assert any(c.isdigit() for c in password)
+    def test_add_user_has_status_ok(self, client):
+        """The JSON body should contain status == 'ok'."""
+        resp = client.post("/auth/add_user", json={
+            "username": "newuser",
+            "password": "newpass123",
+        })
+        data = resp.get_json()
+        assert data["status"] == "ok"
 
-    # Checks that a password with no digit is flagged
-    def test_password_missing_digit(self):
-        password = "NoDigitsHere"
-        assert not any(c.isdigit() for c in password)
+    def test_add_user_message_contains_username(self, client):
+        """The response message should echo back the submitted username."""
+        resp = client.post("/auth/add_user", json={
+            "username": "bob",
+            "password": "b0bpass",
+        })
+        data = resp.get_json()
+        assert "bob" in data["message"]
 
+    def test_add_user_wrong_method_returns_405(self, client):
+        """GET requests to /auth/add_user should be rejected with 405."""
+        resp = client.get("/auth/add_user")
+        assert resp.status_code == 405
 
-class TestLoginFlow:
-
-    # Simulates a successful login check
-    def test_correct_credentials(self):
-        stored_user = {"username": "shaunak", "password": "hashed_pw_123"}
-        assert stored_user["username"] == "shaunak"
-
-    # Simulates a failed login with wrong username
-    def test_wrong_username(self):
-        stored_user = {"username": "shaunak", "password": "hashed_pw_123"}
-        attempt = "wrong_user"
-        assert attempt != stored_user["username"]
+    def test_add_user_response_keys(self, client):
+        """Response JSON should contain exactly 'status' and 'message' keys."""
+        resp = client.post("/auth/add_user", json={
+            "username": "newuser",
+            "password": "newpass",
+        })
+        data = resp.get_json()
+        assert set(data.keys()) == {"status", "message"}
