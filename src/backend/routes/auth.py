@@ -4,7 +4,8 @@ Auth routes — /auth
 Endpoints for user login and registration.
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
+import bcrypt
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -20,11 +21,32 @@ def login():
     username = data.get("username")
     password = data.get("password")
 
-    # TODO: look up user in DB and verify hashed password with bcrypt
+    # validate input
+    if not username or not password:
+        return jsonify({
+            "status": "error",
+            "message": "Username and password are required",
+        }), 400 # bad request
+    
+    # look up user in DB
+    user = current_app.db.users.find_one({"username": username})
+    if not user:
+        return jsonify({
+            "status": "error",
+            "message": "User not found",
+        }), 404 # not found
+    
+    # verify hashed password with bcrypt
+    if not bcrypt.checkpw(password.encode("utf-8"), user["password"]):
+        return jsonify({
+            "status": "error",
+            "message": "Invalid password",
+        }), 401 # unauthorized
+    
     return jsonify({
         "status": "ok",
-        "message": f"login endpoint hit for user '{username}'",
-    })
+        "message": f"User '{username}' logged in successfully",
+    }), 200 # Successful Login
 
 
 @auth_bp.route("/add_user", methods=["POST"])
@@ -38,8 +60,31 @@ def add_user():
     username = data.get("username")
     password = data.get("password")
 
-    # TODO: validate input, hash password with bcrypt, store in MongoDB
+    # validate input
+    if not username or not password:
+        return jsonify({
+            "status": "error",
+            "message": "Username and password are required",
+        }), 400 # bad request
+    
+    # check if user already exists
+    user = current_app.db.users.find_one({"username": username})
+    if user:
+        return jsonify({
+            "status": "error",
+            "message": "Username already exists",
+        }), 409 # conflict - user already exists
+    
+    # hash password
+    hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+    
+    # insert user into database
+    current_app.db.users.insert_one({
+        "username": username,
+        "password": hashed_password,
+    })
+
     return jsonify({
         "status": "ok",
-        "message": f"add_user endpoint hit for user '{username}'",
-    })
+        "message": f"User '{username}' created successfully",
+    }), 201 # Successful Creation

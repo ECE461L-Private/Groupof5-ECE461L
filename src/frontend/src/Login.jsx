@@ -7,7 +7,7 @@ function Login() {
     const [error, setError] = useState('')
     const navigate = useNavigate()
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault()
         setError('')
 
@@ -16,9 +16,22 @@ function Login() {
             return
         }
 
-        // TODO: call backend API to authenticate
-        console.log('Logging in with', userid, password)
-        alert('Login successful! (placeholder)')
+        // Call your Flask backend
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: userid, password: password })
+        })
+        const data = await response.json()
+        if (data.status === 'ok') {
+            setError('Login successful!')      // redirect on success
+            navigate('/dashboard')
+        }
+        else {
+            setError(data.message)      // show backend error message
+        }
+        // console.log('Logging in with', userid, password)
+        // alert('Login successful! (placeholder)')
     }
 
     return (
