@@ -4,6 +4,18 @@ This project has two test suites: **backend** (Python/pytest) and **frontend** (
 
 ---
 
+## Run All Tests at Once
+
+From the **project root** (`Groupof5-ECE461L/`), run:
+
+```bash
+./run_tests.sh
+```
+
+This single command runs all 117 tests (64 backend + 53 frontend) sequentially.
+
+---
+
 ## Backend Tests (pytest)
 
 ### Setup (first time only)
