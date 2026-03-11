@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend-tests:
-    name: Backend Tests (pytest)
+    name: Backend Unit Tests (pytest)
     runs-on: ubuntu-latest
 
     steps:
@@ -24,12 +24,12 @@ jobs:
         working-directory: src/backend
         run: pip install -r requirements.txt
 
-      - name: Run backend tests
+      - name: Run backend unit tests
         working-directory: src/backend
-        run: python -m pytest -v
+        run: python -m pytest tests/test_app.py tests/test_auth.py tests/test_projects.py tests/test_hardware.py tests/test_transactions.py -v
 
   frontend-tests:
-    name: Frontend Tests (vitest)
+    name: Frontend Unit Tests (vitest)
     runs-on: ubuntu-latest
 
     steps:
@@ -45,6 +45,50 @@ jobs:
         working-directory: src/frontend
         run: npm install
 
-      - name: Run frontend tests
+      - name: Run frontend unit tests
         working-directory: src/frontend
-        run: npm test
+        run: npx vitest run src/App.test.jsx src/Login.test.jsx src/CreateAccount.test.jsx src/Dashboard.test.jsx
+
+  backend-e2e-tests:
+    name: Backend E2E Tests (pytest)
+    needs: backend-tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        working-directory: src/backend
+        run: pip install -r requirements.txt
+
+      - name: Run backend e2e tests
+        working-directory: src/backend
+        run: python -m pytest tests/test_e2e.py -v
+
+  frontend-e2e-tests:
+    name: Frontend E2E Tests (vitest)
+    needs: frontend-tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: src/frontend
+        run: npm install
+
+      - name: Run frontend e2e tests
+        working-directory: src/frontend
+        run: npx vitest run src/E2E.test.jsx

@@ -1,8 +1,15 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import Login from './Login'
+
+// Mock react-router-dom's useNavigate
+const mockNavigate = vi.fn()
+vi.mock('react-router-dom', async () => {
+    const actual = await vi.importActual('react-router-dom')
+    return { ...actual, useNavigate: () => mockNavigate }
+})
 
 // Helper to render Login inside a router context
 function renderLogin() {
@@ -14,6 +21,20 @@ function renderLogin() {
 }
 
 describe('Login Component', () => {
+
+    beforeEach(() => {
+        mockNavigate.mockClear()
+        // Default fetch mock — successful login
+        global.fetch = vi.fn(() =>
+            Promise.resolve({
+                json: () => Promise.resolve({ status: 'ok', message: 'Login successful' }),
+            })
+        )
+    })
+
+    afterEach(() => {
+        vi.restoreAllMocks()
+    })
 
     // ── Rendering Tests ────────────────────────────────────────
 
@@ -110,38 +131,53 @@ describe('Login Component', () => {
         expect(screen.getByText(/please fill in all fields/i)).toBeInTheDocument()
     })
 
-    it('does not show error when both fields are filled and submitted', async () => {
-        // Mock window.alert since the component calls it on success
-        vi.spyOn(window, 'alert').mockImplementation(() => { })
-
+    it('does not call fetch when fields are empty', async () => {
         renderLogin()
-        await userEvent.type(screen.getByPlaceholderText('User ID'), 'shaunak')
-        await userEvent.type(screen.getByPlaceholderText('Password'), 'pass123')
         await userEvent.click(screen.getByRole('button', { name: /login/i }))
-
-        expect(screen.queryByText(/please fill in all fields/i)).not.toBeInTheDocument()
-
-        window.alert.mockRestore()
+        expect(global.fetch).not.toHaveBeenCalled()
     })
 
-    // ── Form Submission Tests ──────────────────────────────────
+    // ── Form Submission Tests (with fetch mock) ────────────────
 
-    it('calls alert on successful login', async () => {
-        const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => { })
-
+    it('calls fetch on valid form submission', async () => {
         renderLogin()
         await userEvent.type(screen.getByPlaceholderText('User ID'), 'bob')
         await userEvent.type(screen.getByPlaceholderText('Password'), 'pass')
         await userEvent.click(screen.getByRole('button', { name: /login/i }))
 
-        expect(alertSpy).toHaveBeenCalledWith('Login successful! (placeholder)')
+        expect(global.fetch).toHaveBeenCalledTimes(1)
+    })
 
-        alertSpy.mockRestore()
+    it('navigates to /dashboard on successful login', async () => {
+        renderLogin()
+        await userEvent.type(screen.getByPlaceholderText('User ID'), 'bob')
+        await userEvent.type(screen.getByPlaceholderText('Password'), 'pass')
+        await userEvent.click(screen.getByRole('button', { name: /login/i }))
+
+        // Wait for the async fetch to resolve
+        await vi.waitFor(() => {
+            expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
+        })
+    })
+
+    it('displays backend error message on failed login', async () => {
+        global.fetch = vi.fn(() =>
+            Promise.resolve({
+                json: () => Promise.resolve({ status: 'error', message: 'Invalid password' }),
+            })
+        )
+
+        renderLogin()
+        await userEvent.type(screen.getByPlaceholderText('User ID'), 'bob')
+        await userEvent.type(screen.getByPlaceholderText('Password'), 'wrong')
+        await userEvent.click(screen.getByRole('button', { name: /login/i }))
+
+        await vi.waitFor(() => {
+            expect(screen.getByText(/invalid password/i)).toBeInTheDocument()
+        })
     })
 
     it('clears previous error on new valid submission', async () => {
-        const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => { })
-
         renderLogin()
 
         // First submit with empty — triggers error
@@ -152,9 +188,10 @@ describe('Login Component', () => {
         await userEvent.type(screen.getByPlaceholderText('User ID'), 'user')
         await userEvent.type(screen.getByPlaceholderText('Password'), 'pass')
         await userEvent.click(screen.getByRole('button', { name: /login/i }))
-        expect(screen.queryByText(/please fill in all fields/i)).not.toBeInTheDocument()
 
-        alertSpy.mockRestore()
+        await vi.waitFor(() => {
+            expect(screen.queryByText(/please fill in all fields/i)).not.toBeInTheDocument()
+        })
     })
 
     // ── Structure & Accessibility Tests ────────────────────────

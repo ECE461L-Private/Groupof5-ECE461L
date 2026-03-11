@@ -1,8 +1,15 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import CreateAccount from './CreateAccount'
+
+// Mock react-router-dom's useNavigate
+const mockNavigate = vi.fn()
+vi.mock('react-router-dom', async () => {
+    const actual = await vi.importActual('react-router-dom')
+    return { ...actual, useNavigate: () => mockNavigate }
+})
 
 // Helper to render CreateAccount inside a router context
 function renderCreateAccount() {
@@ -14,6 +21,20 @@ function renderCreateAccount() {
 }
 
 describe('CreateAccount Component', () => {
+
+    beforeEach(() => {
+        mockNavigate.mockClear()
+        // Default fetch mock — successful registration
+        global.fetch = vi.fn(() =>
+            Promise.resolve({
+                json: () => Promise.resolve({ status: 'ok', message: 'Account created' }),
+            })
+        )
+    })
+
+    afterEach(() => {
+        vi.restoreAllMocks()
+    })
 
     // ── Rendering Tests ────────────────────────────────────────
 
@@ -145,40 +166,68 @@ describe('CreateAccount Component', () => {
         expect(screen.queryByText(/passwords do not match/i)).not.toBeInTheDocument()
     })
 
-    // ── Successful Submission Tests ────────────────────────────
+    it('does not call fetch when validation fails', async () => {
+        renderCreateAccount()
+        await userEvent.click(screen.getByRole('button', { name: /create account/i }))
+        expect(global.fetch).not.toHaveBeenCalled()
+    })
 
-    it('calls alert on successful account creation', async () => {
-        const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => { })
+    // ── Successful Submission Tests (with fetch mock) ──────────
 
+    it('calls fetch on valid form submission', async () => {
         renderCreateAccount()
         await userEvent.type(screen.getByPlaceholderText('User ID'), 'alice')
         await userEvent.type(screen.getByPlaceholderText('Password'), 'pass123')
         await userEvent.type(screen.getByPlaceholderText('Confirm Password'), 'pass123')
         await userEvent.click(screen.getByRole('button', { name: /create account/i }))
 
-        expect(alertSpy).toHaveBeenCalledWith('Account created! (placeholder)')
+        expect(global.fetch).toHaveBeenCalledTimes(1)
+    })
 
-        alertSpy.mockRestore()
+    it('navigates to /login on successful account creation', async () => {
+        renderCreateAccount()
+        await userEvent.type(screen.getByPlaceholderText('User ID'), 'alice')
+        await userEvent.type(screen.getByPlaceholderText('Password'), 'pass123')
+        await userEvent.type(screen.getByPlaceholderText('Confirm Password'), 'pass123')
+        await userEvent.click(screen.getByRole('button', { name: /create account/i }))
+
+        await vi.waitFor(() => {
+            expect(mockNavigate).toHaveBeenCalledWith('/login')
+        })
+    })
+
+    it('displays backend error message on failed registration', async () => {
+        global.fetch = vi.fn(() =>
+            Promise.resolve({
+                json: () => Promise.resolve({ status: 'error', message: 'Username already exists' }),
+            })
+        )
+
+        renderCreateAccount()
+        await userEvent.type(screen.getByPlaceholderText('User ID'), 'taken')
+        await userEvent.type(screen.getByPlaceholderText('Password'), 'pass123')
+        await userEvent.type(screen.getByPlaceholderText('Confirm Password'), 'pass123')
+        await userEvent.click(screen.getByRole('button', { name: /create account/i }))
+
+        await vi.waitFor(() => {
+            expect(screen.getByText(/username already exists/i)).toBeInTheDocument()
+        })
     })
 
     it('does not show any error on valid submission', async () => {
-        const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => { })
-
         renderCreateAccount()
         await userEvent.type(screen.getByPlaceholderText('User ID'), 'alice')
         await userEvent.type(screen.getByPlaceholderText('Password'), 'pass123')
         await userEvent.type(screen.getByPlaceholderText('Confirm Password'), 'pass123')
         await userEvent.click(screen.getByRole('button', { name: /create account/i }))
 
-        expect(screen.queryByText(/please fill in all fields/i)).not.toBeInTheDocument()
-        expect(screen.queryByText(/passwords do not match/i)).not.toBeInTheDocument()
-
-        alertSpy.mockRestore()
+        await vi.waitFor(() => {
+            expect(screen.queryByText(/please fill in all fields/i)).not.toBeInTheDocument()
+            expect(screen.queryByText(/passwords do not match/i)).not.toBeInTheDocument()
+        })
     })
 
     it('clears previous error on new valid submission', async () => {
-        const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => { })
-
         renderCreateAccount()
 
         // First submit with empty — triggers error
@@ -190,9 +239,10 @@ describe('CreateAccount Component', () => {
         await userEvent.type(screen.getByPlaceholderText('Password'), 'pass')
         await userEvent.type(screen.getByPlaceholderText('Confirm Password'), 'pass')
         await userEvent.click(screen.getByRole('button', { name: /create account/i }))
-        expect(screen.queryByText(/please fill in all fields/i)).not.toBeInTheDocument()
 
-        alertSpy.mockRestore()
+        await vi.waitFor(() => {
+            expect(screen.queryByText(/please fill in all fields/i)).not.toBeInTheDocument()
+        })
     })
 
     // ── Structure & Accessibility Tests ────────────────────────

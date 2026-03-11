@@ -78,6 +78,10 @@ class TestBlueprintRegistration:
         """The 'hardware' blueprint should be registered."""
         assert "hardware" in app.blueprints
 
+    def test_transactions_blueprint_registered(self, app):
+        """The 'transactions' blueprint should be registered."""
+        assert "transactions" in app.blueprints
+
 
 class TestNonexistentRoutes:
     """Tests for routes that do not exist — ensures proper 404 handling."""
