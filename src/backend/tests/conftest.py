@@ -15,12 +15,32 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from app import create_app
 
 
+from unittest.mock import patch
+
+class MockUsersColl:
+    def __init__(self):
+        self.data = []
+    def find_one(self, query):
+        username = query.get("username")
+        for u in self.data:
+            if u.get("username") == username:
+                return u
+        return None
+    def insert_one(self, doc):
+        self.data.append(doc.copy())
+
+class MockDB:
+    def __init__(self):
+        self.users = MockUsersColl()
+
 @pytest.fixture
 def app():
     """Create the Flask application in testing mode."""
-    app = create_app()
-    app.config["TESTING"] = True
-    return app
+    with patch("app.MongoClient"):
+        app = create_app()
+        app.config["TESTING"] = True
+        app.db = MockDB()
+        yield app
 
 
 @pytest.fixture

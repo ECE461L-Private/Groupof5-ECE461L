@@ -6,22 +6,35 @@ differently for development, testing, and production.
 """
 
 from flask import Flask
-
+from flask_cors import CORS
+import os
+from dotenv import load_dotenv
+from pymongo import MongoClient
 
 def create_app():
     """Create and configure the Flask application."""
     app = Flask(__name__)
+    CORS(app)   # allows cross-origin requests
+    
+    load_dotenv()  # reads your .env file
+
+    # Connect to MongoDB
+    client = MongoClient(os.getenv("MONGODB_URI"))
+    db = client["haas_db"]  # creates/uses a database called "haas_db"
+
+    # Store db on the app so routes can access it
+    app.db = db
 
     # ── Register route blueprints ────────────────────────────
     from routes.auth import auth_bp
     from routes.projects import projects_bp
     from routes.hardware import hardware_bp
-    #from routes.transactions import transactions_bp
+    from routes.transactions import transactions_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(projects_bp)
     app.register_blueprint(hardware_bp)
-    #app.register_blueprint(transactions_bp)
+    app.register_blueprint(transactions_bp)
 
     # ── Health-check root route ──────────────────────────────
     @app.route("/")
@@ -34,4 +47,4 @@ def create_app():
 # ── Run the dev server when executed directly ────────────────
 if __name__ == "__main__":
     app = create_app()
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)

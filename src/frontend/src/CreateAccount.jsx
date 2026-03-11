@@ -8,7 +8,7 @@ function CreateAccount() {
     const [error, setError] = useState('')
     const navigate = useNavigate()
 
-    const handleCreate = (e) => {
+    const handleCreate = async (e) => {
         e.preventDefault()
         setError('')
 
@@ -22,10 +22,21 @@ function CreateAccount() {
             return
         }
 
-        // TODO: call backend API to create account
-        console.log('Creating account for', userid)
-        alert('Account created! (placeholder)')
-        navigate('/login')
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/add_user`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: userid, password: password })
+        })
+        const data = await response.json()
+        if (data.status === 'ok') {
+            setError('Account created!')
+            navigate('/login')
+        } else {
+            setError(data.message)
+        }
+        //console.log('Creating account for', userid)
+        // alert('Account created! (placeholder)')
+        // navigate('/login')
     }
 
     return (
