@@ -66,7 +66,10 @@ def check_out():
     # allocate hardware in the db
     current_app.db.hardware.update_one(
         {"_id": hw_id},
-        {"$inc": {f"projects.{project_id}": quantity}}
+        {"$inc": {
+            f"projects.{project_id}": quantity,
+            "available": -quantity
+        }}
     )
 
     return jsonify({
@@ -122,10 +125,13 @@ def check_in():
         }), 400
 
     # dec hardware in the db
-    # We use $inc with a negative number to subtract
+    # We use $inc with a negative number to subtract from projects, and add back to available
     current_app.db.hardware.update_one(
         {"_id": hw_id},
-        {"$inc": {f"projects.{project_id}": -quantity}}
+        {"$inc": {
+            f"projects.{project_id}": -quantity,
+            "available": quantity
+        }}
     )
 
     return jsonify({

@@ -16,12 +16,14 @@ def init_hardware_if_empty():
                 "_id": "hw_set_1",
                 "name": "HWSet1",
                 "capacity": 100,
+                "available": 100,
                 "projects": {}
             },
             {
                 "_id": "hw_set_2",
                 "name": "HWSet2",
                 "capacity": 100,
+                "available": 100,
                 "projects": {}
             }
         ])
@@ -38,15 +40,11 @@ def list_hardware():
     hardware_list = []
     
     for hw in hw_cursor:
-        # compute dynamic availability
-        checked_out_total = sum(hw.get("projects", {}).values())
-        available = hw.get("capacity", 0) - checked_out_total
-
         hardware_list.append({
             "hw_id": hw["_id"],
             "name": hw.get("name"),
             "capacity": hw.get("capacity"),
-            "available": available,
+            "available": hw.get("available", hw.get("capacity", 0)),
             "allocations": hw.get("projects", {})
         })
 
@@ -82,9 +80,6 @@ def get_hw_info():
             "message": f"Hardware '{hw_id}' not found",
         }), 404
 
-    checked_out_total = sum(hw.get("projects", {}).values())
-    available = hw.get("capacity", 0) - checked_out_total
-
     return jsonify({
         "status": "ok",
         "message": f"Successfully fetched hardware '{hw_id}' info",
@@ -92,7 +87,7 @@ def get_hw_info():
             "hw_id": hw["_id"],
             "name": hw.get("name"),
             "capacity": hw.get("capacity"),
-            "available": available,
+            "available": hw.get("available", hw.get("capacity", 0)),
             "allocations": hw.get("projects", {})
         }
     }), 200
