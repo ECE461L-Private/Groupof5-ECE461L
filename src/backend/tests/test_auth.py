@@ -14,6 +14,9 @@ class TestLoginEndpoint:
 
     def test_login_returns_200(self, client):
         """A valid login request should return HTTP 200."""
+        # Add user first
+        client.post("/auth/add_user", json={"username": "testuser", "password": "testpass123"})
+        
         resp = client.post("/auth/login", json={
             "username": "testuser",
             "password": "testpass123",
@@ -22,6 +25,9 @@ class TestLoginEndpoint:
 
     def test_login_returns_json(self, client):
         """The response should be valid JSON."""
+        # Add user first
+        client.post("/auth/add_user", json={"username": "testuser", "password": "testpass123"})
+        
         resp = client.post("/auth/login", json={
             "username": "testuser",
             "password": "testpass123",
@@ -31,6 +37,9 @@ class TestLoginEndpoint:
 
     def test_login_has_status_ok(self, client):
         """The JSON body should contain status == 'ok'."""
+        # Add user first
+        client.post("/auth/add_user", json={"username": "testuser", "password": "testpass123"})
+        
         resp = client.post("/auth/login", json={
             "username": "testuser",
             "password": "testpass123",
@@ -40,6 +49,9 @@ class TestLoginEndpoint:
 
     def test_login_message_contains_username(self, client):
         """The response message should echo back the submitted username."""
+        # Add user first
+        client.post("/auth/add_user", json={"username": "alice", "password": "s3cret"})
+        
         resp = client.post("/auth/login", json={
             "username": "alice",
             "password": "s3cret",
@@ -54,6 +66,9 @@ class TestLoginEndpoint:
 
     def test_login_content_type_is_json(self, client):
         """Response Content-Type should be application/json."""
+        # Add user first
+        client.post("/auth/add_user", json={"username": "testuser", "password": "pass"})
+        
         resp = client.post("/auth/login", json={
             "username": "testuser",
             "password": "pass",
@@ -64,13 +79,13 @@ class TestLoginEndpoint:
 class TestAddUserEndpoint:
     """Tests for POST /auth/add_user."""
 
-    def test_add_user_returns_200(self, client):
-        """A valid add_user request should return HTTP 200."""
+    def test_add_user_returns_201(self, client):
+        """A valid add_user request should return HTTP 201."""
         resp = client.post("/auth/add_user", json={
             "username": "newuser",
             "password": "newpass123",
         })
-        assert resp.status_code == 200
+        assert resp.status_code == 201
 
     def test_add_user_returns_json(self, client):
         """The response should be valid JSON."""
