@@ -1,8 +1,28 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 function Dashboard() {
     const navigate = useNavigate()
+    const [stats, setStats] = useState({ hwSets: 2, checkedOut: 0, projects: 0 })
+    const [activityLog, setActivityLog] = useState([])
+
+    useEffect(() => {
+        // Read real data from localStorage
+        const hw = JSON.parse(localStorage.getItem('hwState') || '[]')
+        const totalCheckedOut = hw.reduce((sum, h) => sum + (h.userCheckedOut || 0), 0)
+
+        const projects = JSON.parse(localStorage.getItem('projects') || '[]')
+        const joinedProjects = projects.filter(p => p.joined).length
+
+        const log = JSON.parse(localStorage.getItem('activityLog') || '[]')
+
+        setStats({
+            hwSets: hw.length > 0 ? hw.length : 2,
+            checkedOut: totalCheckedOut,
+            projects: joinedProjects,
+        })
+        setActivityLog(log)
+    }, [])
 
     const handleLogout = () => {
         // TODO: clear session/token
@@ -16,35 +36,43 @@ function Dashboard() {
 
                 <div className="summary-cards">
                     <div className="card">
-                        <h3>2</h3>
+                        <h3>{stats.hwSets}</h3>
                         <p>Hardware Sets</p>
                     </div>
                     <div className="card">
-                        <h3>1</h3>
-                        <p>Checked Out</p>
+                        <h3>{stats.checkedOut}</h3>
+                        <p>Units Checked Out</p>
                     </div>
                     <div className="card">
-                        <h3>3</h3>
-                        <p>Projects</p>
+                        <h3>{stats.projects}</h3>
+                        <p>Projects Joined</p>
                     </div>
                 </div>
 
                 <h3>Recent Activity</h3>
-                <ul className="activity-list">
-                    <li>Checked out 5 units from HWSet1</li>
-                    <li>Joined project "Robot Arm"</li>
-                    <li>Returned 2 units to HWSet2</li>
-                    <li>Created project "IoT Sensor"</li>
-                </ul>
+                {activityLog.length === 0 ? (
+                    <p style={{ fontSize: '14px', color: '#888', marginBottom: '20px' }}>
+                        No activity yet. Check out some hardware or create a project!
+                    </p>
+                ) : (
+                    <ul className="activity-list">
+                        {activityLog.slice(0, 5).map((entry, i) => (
+                            <li key={i}>
+                                <span>{entry.msg}</span>
+                                <span className="activity-time">{entry.time}</span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
 
                 <div className="nav-buttons">
-                    <button onClick={() => alert('Hardware Sets page coming soon!')}>
+                    <button onClick={() => navigate('/hardware')}>
                         View Hardware
                     </button>
-                    <button onClick={() => alert('New Project page coming soon!')}>
+                    <button onClick={() => navigate('/new-project')}>
                         New Project
                     </button>
-                    <button onClick={() => alert('Profile page coming soon!')}>
+                    <button onClick={() => navigate('/profile')}>
                         My Profile
                     </button>
                 </div>

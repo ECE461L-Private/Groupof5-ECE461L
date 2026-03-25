@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -22,6 +22,16 @@ function renderDashboard() {
 
 describe('Dashboard Component', () => {
 
+    beforeEach(() => {
+        localStorage.clear()
+        localStorage.setItem('activityLog', JSON.stringify([
+            { msg: 'Checked out 5 units', time: '10:00 AM' },
+            { msg: 'Joined project ABC', time: '11:00 AM' },
+            { msg: 'Returned 2 units', time: '12:00 PM' },
+            { msg: 'Created project XYZ', time: '1:00 PM' }
+        ]))
+    })
+
     // ── Rendering Tests ────────────────────────────────────────
 
     it('renders the welcome heading', () => {
@@ -36,7 +46,7 @@ describe('Dashboard Component', () => {
 
     it('renders checked out summary card', () => {
         renderDashboard()
-        expect(screen.getByText('Checked Out')).toBeInTheDocument()
+        expect(screen.getByText('Units Checked Out')).toBeInTheDocument()
     })
 
     it('renders projects summary card', () => {
@@ -86,28 +96,25 @@ describe('Dashboard Component', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/login')
     })
 
-    it('shows alert when clicking View Hardware', async () => {
-        const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    it('navigates to /hardware on View Hardware click', async () => {
+        mockNavigate.mockClear()
         renderDashboard()
         await userEvent.click(screen.getByRole('button', { name: /view hardware/i }))
-        expect(alertSpy).toHaveBeenCalledWith('Hardware Sets page coming soon!')
-        alertSpy.mockRestore()
+        expect(mockNavigate).toHaveBeenCalledWith('/hardware')
     })
 
-    it('shows alert when clicking New Project', async () => {
-        const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    it('navigates to /new-project on New Project click', async () => {
+        mockNavigate.mockClear()
         renderDashboard()
         await userEvent.click(screen.getByRole('button', { name: /new project/i }))
-        expect(alertSpy).toHaveBeenCalledWith('New Project page coming soon!')
-        alertSpy.mockRestore()
+        expect(mockNavigate).toHaveBeenCalledWith('/new-project')
     })
 
-    it('shows alert when clicking My Profile', async () => {
-        const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    it('navigates to /profile on My Profile click', async () => {
+        mockNavigate.mockClear()
         renderDashboard()
         await userEvent.click(screen.getByRole('button', { name: /my profile/i }))
-        expect(alertSpy).toHaveBeenCalledWith('Profile page coming soon!')
-        alertSpy.mockRestore()
+        expect(mockNavigate).toHaveBeenCalledWith('/profile')
     })
 
     // ── Structure Tests ────────────────────────────────────────
