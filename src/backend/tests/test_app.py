@@ -62,6 +62,11 @@ class TestHealthCheck:
         resp = client.get("/")
         assert resp.content_type == "application/json"
 
+    def test_root_post_not_allowed(self, client):
+        """POST to the root route should return HTTP 405."""
+        resp = client.post("/")
+        assert resp.status_code == 405
+
 
 class TestBlueprintRegistration:
     """Tests that all expected blueprints are registered."""

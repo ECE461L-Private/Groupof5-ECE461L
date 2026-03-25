@@ -209,6 +209,25 @@ describe('E2E Integration Tests', () => {
             expect(alertSpy).toHaveBeenCalledTimes(3)
             alertSpy.mockRestore()
         })
+
+        it('supports full session cycle: login → dashboard → logout', async () => {
+            renderApp('/login')
+            
+            // Login
+            await userEvent.type(screen.getByPlaceholderText('User ID'), 'test_user')
+            await userEvent.type(screen.getByPlaceholderText('Password'), 'test_pass')
+            await userEvent.click(screen.getByRole('button', { name: /login/i }))
+            
+            await vi.waitFor(() => {
+                expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
+            })
+            
+            // Simulate moving to dashboard and logging out
+            mockNavigate.mockClear()
+            renderApp('/dashboard')
+            await userEvent.click(screen.getByRole('button', { name: /logout/i }))
+            expect(mockNavigate).toHaveBeenCalledWith('/login')
+        })
     })
 
     // ── Root Redirect Tests ────────────────────────────────────
