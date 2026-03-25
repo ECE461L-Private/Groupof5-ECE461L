@@ -44,7 +44,7 @@ function Dashboard() {
                     <button onClick={() => alert('New Project page coming soon!')}>
                         New Project
                     </button>
-                    <button onClick={() => alert('Profile page coming soon!')}>
+                    <button onClick={() => navigate('/profile')}>
                         My Profile
                     </button>
                 </div>
