@@ -1,183 +1,100 @@
 """
 Tests for the transactions blueprint (/transactions).
-
-Uses Flask's test client to send real HTTP requests to the check_out
-and check_in endpoints and validates status codes, JSON structure,
-and response content.
 """
 
 import pytest
 
-
 class TestCheckOut:
-    """Tests for POST /transactions/check_out."""
+    def test_checkout_success(self, client, app):
+        """Valid checkout should return 200 and allocate hardware."""
+        app.db.users.insert_one({"username": "owner"})
+        app.db.hardware.insert_one({"_id": "hw_1", "capacity": 100, "projects": {}})
+        
+        # Create project
+        create_resp = client.post("/projects/create", json={"name": "Test", "owner": "owner"})
+        pid = create_resp.get_json()["project_id"]
 
-    def test_check_out_returns_200(self, client):
-        """A valid check_out request should return HTTP 200."""
         resp = client.post("/transactions/check_out", json={
-            "project_id": "proj_001",
-            "hw_id": "hw_set_1",
-            "quantity": 5,
+            "project_id": pid,
+            "hw_id": "hw_1",
+            "quantity": 50
         })
+        
         assert resp.status_code == 200
+        
+        hw = app.db.hardware.find_one({"_id": "hw_1"})
+        assert hw["projects"][pid] == 50
 
-    def test_check_out_returns_json(self, client):
-        """The response should be valid JSON."""
+    def test_checkout_missing_fields(self, client):
+        resp = client.post("/transactions/check_out", json={})
+        assert resp.status_code == 400
+
+    def test_checkout_invalid_quantity(self, client):
         resp = client.post("/transactions/check_out", json={
-            "project_id": "proj_001",
-            "hw_id": "hw_set_1",
-            "quantity": 3,
+            "project_id": "pid1",
+            "hw_id": "hw1",
+            "quantity": -5
         })
-        data = resp.get_json()
-        assert data is not None
+        assert resp.status_code == 400
 
-    def test_check_out_has_status_ok(self, client):
-        """JSON body should contain status == 'ok'."""
+    def test_checkout_not_enough_capacity(self, client, app):
+        app.db.users.insert_one({"username": "owner"})
+        app.db.hardware.insert_one({"_id": "hw_1", "capacity": 10, "projects": {}})
+        
+        create_resp = client.post("/projects/create", json={"name": "Test", "owner": "owner"})
+        pid = create_resp.get_json()["project_id"]
+
         resp = client.post("/transactions/check_out", json={
-            "project_id": "proj_001",
-            "hw_id": "hw_set_1",
-            "quantity": 2,
+            "project_id": pid,
+            "hw_id": "hw_1",
+            "quantity": 20
         })
-        data = resp.get_json()
-        assert data["status"] == "ok"
-
-    def test_check_out_message_contains_hw_id(self, client):
-        """Response message should echo the hw_id."""
-        resp = client.post("/transactions/check_out", json={
-            "project_id": "proj_001",
-            "hw_id": "sensor_A",
-            "quantity": 1,
-        })
-        data = resp.get_json()
-        assert "sensor_A" in data["message"]
-
-    def test_check_out_message_contains_project_id(self, client):
-        """Response message should echo the project_id."""
-        resp = client.post("/transactions/check_out", json={
-            "project_id": "proj_xyz",
-            "hw_id": "hw_set_1",
-            "quantity": 1,
-        })
-        data = resp.get_json()
-        assert "proj_xyz" in data["message"]
-
-    def test_check_out_message_contains_quantity(self, client):
-        """Response message should echo the quantity."""
-        resp = client.post("/transactions/check_out", json={
-            "project_id": "proj_001",
-            "hw_id": "hw_set_1",
-            "quantity": 7,
-        })
-        data = resp.get_json()
-        assert "7" in data["message"]
-
-    def test_check_out_response_keys(self, client):
-        """Response JSON should contain exactly 'status' and 'message'."""
-        resp = client.post("/transactions/check_out", json={
-            "project_id": "proj_001",
-            "hw_id": "hw_set_1",
-            "quantity": 1,
-        })
-        data = resp.get_json()
-        assert set(data.keys()) == {"status", "message"}
-
-    def test_check_out_content_type(self, client):
-        """Response Content-Type should be application/json."""
-        resp = client.post("/transactions/check_out", json={
-            "project_id": "proj_001",
-            "hw_id": "hw_set_1",
-            "quantity": 1,
-        })
-        assert resp.content_type == "application/json"
-
-    def test_check_out_get_not_allowed(self, client):
-        """GET to /transactions/check_out should return 405."""
-        resp = client.get("/transactions/check_out")
-        assert resp.status_code == 405
+        assert resp.status_code == 400
 
 
 class TestCheckIn:
-    """Tests for POST /transactions/check_in."""
+    def test_checkin_success(self, client, app):
+        """Valid checkin should return 200 and deallocate hardware."""
+        app.db.users.insert_one({"username": "owner"})
+        
+        create_resp = client.post("/projects/create", json={"name": "Test", "owner": "owner"})
+        pid = create_resp.get_json()["project_id"]
 
-    def test_check_in_returns_200(self, client):
-        """A valid check_in request should return HTTP 200."""
+        app.db.hardware.insert_one({"_id": "hw_1", "capacity": 100, "projects": {pid: 50}})
+
         resp = client.post("/transactions/check_in", json={
-            "project_id": "proj_001",
-            "hw_id": "hw_set_1",
-            "quantity": 3,
+            "project_id": pid,
+            "hw_id": "hw_1",
+            "quantity": 20
         })
+        
         assert resp.status_code == 200
+        
+        hw = app.db.hardware.find_one({"_id": "hw_1"})
+        assert hw["projects"][pid] == 30
 
-    def test_check_in_returns_json(self, client):
-        """The response should be valid JSON."""
+    def test_checkin_missing_fields(self, client):
+        resp = client.post("/transactions/check_in", json={})
+        assert resp.status_code == 400
+
+    def test_checkin_invalid_quantity(self, client):
         resp = client.post("/transactions/check_in", json={
-            "project_id": "proj_001",
-            "hw_id": "hw_set_1",
-            "quantity": 2,
+            "project_id": "pid1",
+            "hw_id": "hw1",
+            "quantity": 0
         })
-        data = resp.get_json()
-        assert data is not None
+        assert resp.status_code == 400
 
-    def test_check_in_has_status_ok(self, client):
-        """JSON body should contain status == 'ok'."""
+    def test_checkin_more_than_held(self, client, app):
+        app.db.users.insert_one({"username": "owner"})
+        create_resp = client.post("/projects/create", json={"name": "Test", "owner": "owner"})
+        pid = create_resp.get_json()["project_id"]
+
+        app.db.hardware.insert_one({"_id": "hw_1", "capacity": 100, "projects": {pid: 10}})
+
         resp = client.post("/transactions/check_in", json={
-            "project_id": "proj_001",
-            "hw_id": "hw_set_1",
-            "quantity": 1,
+            "project_id": pid,
+            "hw_id": "hw_1",
+            "quantity": 20
         })
-        data = resp.get_json()
-        assert data["status"] == "ok"
-
-    def test_check_in_message_contains_hw_id(self, client):
-        """Response message should echo the hw_id."""
-        resp = client.post("/transactions/check_in", json={
-            "project_id": "proj_001",
-            "hw_id": "actuator_B",
-            "quantity": 1,
-        })
-        data = resp.get_json()
-        assert "actuator_B" in data["message"]
-
-    def test_check_in_message_contains_project_id(self, client):
-        """Response message should echo the project_id."""
-        resp = client.post("/transactions/check_in", json={
-            "project_id": "proj_abc",
-            "hw_id": "hw_set_1",
-            "quantity": 1,
-        })
-        data = resp.get_json()
-        assert "proj_abc" in data["message"]
-
-    def test_check_in_message_contains_quantity(self, client):
-        """Response message should echo the quantity."""
-        resp = client.post("/transactions/check_in", json={
-            "project_id": "proj_001",
-            "hw_id": "hw_set_1",
-            "quantity": 4,
-        })
-        data = resp.get_json()
-        assert "4" in data["message"]
-
-    def test_check_in_response_keys(self, client):
-        """Response JSON should contain exactly 'status' and 'message'."""
-        resp = client.post("/transactions/check_in", json={
-            "project_id": "proj_001",
-            "hw_id": "hw_set_1",
-            "quantity": 1,
-        })
-        data = resp.get_json()
-        assert set(data.keys()) == {"status", "message"}
-
-    def test_check_in_content_type(self, client):
-        """Response Content-Type should be application/json."""
-        resp = client.post("/transactions/check_in", json={
-            "project_id": "proj_001",
-            "hw_id": "hw_set_1",
-            "quantity": 1,
-        })
-        assert resp.content_type == "application/json"
-
-    def test_check_in_get_not_allowed(self, client):
-        """GET to /transactions/check_in should return 405."""
-        resp = client.get("/transactions/check_in")
-        assert resp.status_code == 405
+        assert resp.status_code == 400

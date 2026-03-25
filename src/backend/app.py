@@ -19,7 +19,7 @@ def create_app():
     load_dotenv()  # reads your .env file
 
     # Connect to MongoDB
-    client = MongoClient(os.getenv("MONGODB_URI"))
+    client = MongoClient(os.getenv("MONGODB_URI", "mongodb://localhost:27017/haas_db"))
     db = client["haas_db"]  # creates/uses a database called "haas_db"
 
     # Store db on the app so routes can access it

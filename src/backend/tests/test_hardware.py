@@ -35,10 +35,10 @@ class TestListHardware:
         assert "message" in data
 
     def test_list_response_keys(self, client):
-        """Response JSON should contain exactly 'status' and 'message'."""
+        """Response JSON should contain exactly 'status', 'message', 'hardware'."""
         resp = client.get("/hardware/list")
         data = resp.get_json()
-        assert set(data.keys()) == {"status", "message"}
+        assert set(data.keys()) == {"status", "message", "hardware"}
 
     def test_list_content_type_is_json(self, client):
         """Response Content-Type should be application/json."""
@@ -78,16 +78,15 @@ class TestGetHardwareInfo:
         assert "sensor_pack_A" in data["message"]
 
     def test_get_hw_info_without_hw_id(self, client):
-        """Calling without hw_id param still returns 200 (endpoint
-        doesn't enforce it yet)."""
+        """Calling without hw_id param returns 400."""
         resp = client.get("/hardware/get_hw_info")
-        assert resp.status_code == 200
+        assert resp.status_code == 400
 
     def test_get_hw_info_response_keys(self, client):
-        """Response JSON should contain exactly 'status' and 'message'."""
+        """Response JSON should contain exactly 'status', 'message', 'hardware'."""
         resp = client.get("/hardware/get_hw_info?hw_id=hw_set_1")
         data = resp.get_json()
-        assert set(data.keys()) == {"status", "message"}
+        assert set(data.keys()) == {"status", "message", "hardware"}
 
     def test_get_hw_info_content_type(self, client):
         """Response Content-Type should be application/json."""
