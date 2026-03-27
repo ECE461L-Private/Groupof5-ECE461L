@@ -5,6 +5,7 @@ Endpoints for listing hardware sets and viewing individual hardware info.
 """
 
 from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import jwt_required
 
 hardware_bp = Blueprint("hardware", __name__, url_prefix="/hardware")
 
@@ -30,6 +31,7 @@ def init_hardware_if_empty():
 
 
 @hardware_bp.route("/list", methods=["GET"])
+@jwt_required()
 def list_hardware():
     """
     List all hardware sets with capacity and availability.
@@ -56,6 +58,7 @@ def list_hardware():
 
 
 @hardware_bp.route("/get_hw_info", methods=["GET"])
+@jwt_required()
 def get_hw_info():
     """
     Get details for a specific hardware set.

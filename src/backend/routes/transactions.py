@@ -5,11 +5,13 @@ Endpoints for checking hardware in and out of projects.
 """
 
 from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import jwt_required
 
 transactions_bp = Blueprint("transactions", __name__, url_prefix="/transactions")
 
 
 @transactions_bp.route("/check_out", methods=["POST"])
+@jwt_required()
 def check_out():
     """
     Check out hardware for a project.
@@ -79,6 +81,7 @@ def check_out():
 
 
 @transactions_bp.route("/check_in", methods=["POST"])
+@jwt_required()
 def check_in():
     """
     Check in hardware from a project.

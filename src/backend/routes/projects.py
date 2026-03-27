@@ -5,18 +5,18 @@ Endpoints for creating, joining, and viewing projects.
 """
 
 from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import jwt_required, get_jwt_identity
 import uuid
 
 projects_bp = Blueprint("projects", __name__, url_prefix="/projects")
 
 @projects_bp.route("/get_projects", methods=["GET"])
+@jwt_required()
 def get_projects():
     """
     Get all projects associated with a user.
-
-    Expects query param: ?username=<username>
     """
-    username = request.args.get("username")
+    username = get_jwt_identity()
 
     if not username:
         return jsonify({
@@ -53,15 +53,16 @@ def get_projects():
     }), 200
 
 @projects_bp.route("/create", methods=["POST"])
+@jwt_required()
 def create():
     """
     Create a new project.
 
-    Expects JSON: { "name": str, "owner": str }
+    Expects JSON: { "name": str }
     """
     data = request.get_json()
     name = data.get("name")
-    owner = data.get("owner")
+    owner = get_jwt_identity()
 
     if not name or not owner:
         return jsonify({
@@ -103,15 +104,16 @@ def create():
 
 
 @projects_bp.route("/join", methods=["POST"])
+@jwt_required()
 def join():
     """
     Join an existing project.
 
-    Expects JSON: { "project_id": str, "username": str }
+    Expects JSON: { "project_id": str }
     """
     data = request.get_json()
     project_id = data.get("project_id")
-    username = data.get("username")
+    username = get_jwt_identity()
 
     if not project_id or not username:
         return jsonify({
@@ -160,6 +162,7 @@ def join():
 
 
 @projects_bp.route("/get_project_info", methods=["GET"])
+@jwt_required()
 def get_project_info():
     """
     Get details for a specific project.

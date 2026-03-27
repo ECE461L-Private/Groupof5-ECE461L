@@ -10,6 +10,7 @@ from flask_cors import CORS
 import os
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from flask_jwt_extended import JWTManager
 
 def create_app():
     """Create and configure the Flask application."""
@@ -17,6 +18,10 @@ def create_app():
     CORS(app)   # allows cross-origin requests
     
     load_dotenv()  # reads your .env file
+
+    # Setup the Flask-JWT-Extended extension
+    app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super-secret-haas-key")
+    jwt = JWTManager(app)
 
     # Connect to MongoDB
     client = MongoClient(os.getenv("MONGODB_URI", "mongodb://localhost:27017/haas_db"))

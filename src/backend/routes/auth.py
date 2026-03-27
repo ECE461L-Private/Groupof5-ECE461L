@@ -5,6 +5,7 @@ Endpoints for user login and registration.
 """
 
 from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import create_access_token
 import bcrypt
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -43,9 +44,12 @@ def login():
             "message": "Invalid password",
         }), 401 # unauthorized
     
+    access_token = create_access_token(identity=username)
+    
     return jsonify({
         "status": "ok",
         "message": f"User '{username}' logged in successfully",
+        "access_token": access_token
     }), 200 # Successful Login
 
 
@@ -84,7 +88,10 @@ def add_user():
         "password": hashed_password,
     })
 
+    access_token = create_access_token(identity=username)
+
     return jsonify({
         "status": "ok",
         "message": f"User '{username}' created successfully",
+        "access_token": access_token
     }), 201 # Successful Creation
