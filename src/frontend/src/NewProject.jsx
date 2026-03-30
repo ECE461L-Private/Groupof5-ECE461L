@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from './AuthContext'
 
-function logActivity(msg) {
-    const log = JSON.parse(localStorage.getItem('activityLog') || '[]')
-    log.unshift({ msg, time: new Date().toLocaleTimeString() })
-    localStorage.setItem('activityLog', JSON.stringify(log.slice(0, 20)))
+const logActivity = async (msg, token) => {
+    try {
+        await fetch(`${import.meta.env.VITE_API_URL}/logs/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ message: msg })
+        })
+    } catch(e) { console.error('Failed to log activity', e) }
 }
 
 function NewProject() {
     const [projectName, setProjectName] = useState('')
-    const [projectId, setProjectId] = useState('')
     const [description, setDescription] = useState('')
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
@@ -17,79 +21,115 @@ function NewProject() {
     const [joinId, setJoinId] = useState('')
     const [joinError, setJoinError] = useState('')
     const navigate = useNavigate()
+    const { token } = useAuth()
 
-    useEffect(() => {
-        const saved = JSON.parse(localStorage.getItem('projects') || '[]')
-        setProjects(saved)
-    }, [])
-
-    const saveProjects = (list) => {
-        localStorage.setItem('projects', JSON.stringify(list))
-        setProjects(list)
+    const fetchProjects = async () => {
+        if (!token) return;
+        try {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/get_projects`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            const data = await res.json()
+            if (data.status === 'ok') {
+                const mapped = data.projects.map(p => ({
+                    id: p.project_id,
+                    name: p.name,
+                    description: `Owner: ${p.owner}`,
+                    joined: true
+                }))
+                setProjects(mapped)
+            }
+        } catch (e) { console.error(e) }
     }
 
-    const handleSubmit = (e) => {
+    useEffect(() => {
+        fetchProjects()
+    }, [token])
+
+    const handleSubmit = async (e) => {
         e.preventDefault()
         setError('')
         setSuccess('')
 
-        if (!projectName.trim() || !projectId.trim()) {
-            setError('Project Name and Project ID are required.')
+        if (!projectName.trim()) {
+            setError('Project Name is required.')
             return
         }
 
-        if (projects.find(p => p.id === projectId.trim())) {
-            setError('A project with that ID already exists.')
-            return
-        }
-
-        const newProject = {
-            id: projectId.trim(),
-            name: projectName.trim(),
-            description: description.trim(),
-            createdAt: new Date().toLocaleDateString(),
-            joined: true,
-        }
-        const updated = [...projects, newProject]
-        saveProjects(updated)
-        logActivity(`Created project "${projectName.trim()}"`)
-        setSuccess(`Project "${projectName}" created!`)
-        setProjectName('')
-        setProjectId('')
-        setDescription('')
+        try {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ name: projectName.trim() })
+            })
+            const data = await res.json()
+            if (data.status === 'ok') {
+                logActivity(`Created project "${projectName.trim()}"`, token)
+                setSuccess(`Project "${projectName}" created! ID: ${data.project_id}`)
+                fetchProjects()
+                setProjectName('')
+                setDescription('')
+            } else {
+                setError(data.message)
+            }
+        } catch(e) { setError('Failed to create project') }
     }
 
-    const handleJoin = () => {
+    const handleJoin = async () => {
         setJoinError('')
-        const target = projects.find(p => p.id === joinId.trim())
-        if (!target) {
-            setJoinError('No project found with that ID.')
-            return
-        }
-        if (target.joined) {
-            setJoinError('You already joined this project.')
-            return
-        }
-        const updated = projects.map(p => p.id === joinId.trim() ? { ...p, joined: true } : p)
-        saveProjects(updated)
-        logActivity(`Joined project "${target.name}"`)
-        setJoinId('')
-        setJoinError('')
+        if (!joinId.trim()) return
+
+        try {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/join`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ project_id: joinId.trim() })
+            })
+            const data = await res.json()
+            if (data.status === 'ok') {
+                logActivity(`Joined project ID "${joinId.trim()}"`, token)
+                setJoinId('')
+                fetchProjects()
+            } else {
+                setJoinError(data.message)
+            }
+        } catch(e) { setJoinError('Failed to join project') }
     }
 
-    const handleLeave = (id) => {
-        const target = projects.find(p => p.id === id)
-        const updated = projects.map(p => p.id === id ? { ...p, joined: false } : p)
-        saveProjects(updated)
-        logActivity(`Left project "${target.name}"`)
+    const handleLeave = async (id, name) => {
+        if (!window.confirm(`Are you sure you want to leave ${name}?`)) return
+        try {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/leave`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ project_id: id })
+            })
+            const data = await res.json()
+            if (data.status === 'ok') {
+                logActivity(`Left project "${name}"`, token)
+                fetchProjects()
+            } else {
+                alert(data.message)
+            }
+        } catch(e) { alert('Failed to leave project') }
     }
 
-    const handleDelete = (id) => {
-        const target = projects.find(p => p.id === id)
-        if (!window.confirm(`Delete project "${target.name}"?`)) return
-        const updated = projects.filter(p => p.id !== id)
-        saveProjects(updated)
-        logActivity(`Deleted project "${target.name}"`)
+    const handleDelete = async (id, name) => {
+        if (!window.confirm(`Delete project "${name}"? This action cannot be undone.`)) return
+        try {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/delete`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ project_id: id })
+            })
+            const data = await res.json()
+            if (data.status === 'ok') {
+                logActivity(`Deleted project "${name}"`, token)
+                fetchProjects()
+            } else {
+                alert(data.message)
+            }
+        } catch(e) { alert('Failed to delete project') }
     }
 
     return (
@@ -106,12 +146,6 @@ function NewProject() {
                             placeholder="Project Name"
                             value={projectName}
                             onChange={(e) => setProjectName(e.target.value)}
-                        />
-                        <input
-                            type="text"
-                            placeholder="Project ID (unique)"
-                            value={projectId}
-                            onChange={(e) => setProjectId(e.target.value)}
                         />
                         <textarea
                             placeholder="Description (optional)"
@@ -161,16 +195,9 @@ function NewProject() {
                                     {p.joined ? (
                                         <span className="badge-joined">Joined</span>
                                     ) : (
-                                        <button className="btn-small" onClick={() => {
-                                            const updated = projects.map(x => x.id === p.id ? { ...x, joined: true } : x)
-                                            saveProjects(updated)
-                                            logActivity(`Joined project "${p.name}"`)
-                                        }}>Join</button>
+                                        <button className="btn-small btn-grey" onClick={() => handleLeave(p.id, p.name)}>Leave</button>
                                     )}
-                                    {p.joined && (
-                                        <button className="btn-small btn-grey" onClick={() => handleLeave(p.id)}>Leave</button>
-                                    )}
-                                    <button className="btn-small btn-red" onClick={() => handleDelete(p.id)}>Delete</button>
+                                    <button className="btn-small btn-red" onClick={() => handleDelete(p.id, p.name)}>Delete</button>
                                 </div>
                             </div>
                         ))}

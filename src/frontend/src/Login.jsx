@@ -1,11 +1,13 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useAuth } from './AuthContext'
 
 function Login() {
     const [userid, setUserid] = useState('')
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const navigate = useNavigate()
+    const { login } = useAuth()
 
     const handleLogin = async (e) => {
         e.preventDefault()
@@ -24,14 +26,13 @@ function Login() {
         })
         const data = await response.json()
         if (data.status === 'ok') {
+            login(data.access_token, userid)
             setError('Login successful!')      // redirect on success
             navigate('/dashboard')
         }
         else {
             setError(data.message)      // show backend error message
         }
-        // console.log('Logging in with', userid, password)
-        // alert('Login successful! (placeholder)')
     }
 
     return (
