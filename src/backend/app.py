@@ -35,11 +35,13 @@ def create_app():
     from routes.projects import projects_bp
     from routes.hardware import hardware_bp
     from routes.transactions import transactions_bp
+    from routes.logs import logs_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(projects_bp)
     app.register_blueprint(hardware_bp)
     app.register_blueprint(transactions_bp)
+    app.register_blueprint(logs_bp)
 
     # ── Health-check root route ──────────────────────────────
     @app.route("/")
