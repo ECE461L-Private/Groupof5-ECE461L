@@ -6,17 +6,24 @@
     },
     {
       "src": "src/frontend/package.json",
-      "use": "@vercel/vite"
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "src/backend/app.py"
+      "dest": "/src/backend/app.py"
+    },
+    {
+      "src": "/assets/(.*)",
+      "dest": "/src/frontend/dist/assets/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "src/frontend/$1"
+      "dest": "/src/frontend/dist/index.html"
     }
   ]
 }
