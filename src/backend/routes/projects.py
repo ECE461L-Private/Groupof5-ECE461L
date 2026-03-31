@@ -8,7 +8,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import uuid
 
-projects_bp = Blueprint("projects", __name__, url_prefix="/projects")
+projects_bp = Blueprint("projects", __name__, url_prefix="/api/projects")
 
 @projects_bp.route("/get_projects", methods=["GET"])
 @jwt_required()

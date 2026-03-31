@@ -7,7 +7,7 @@ Endpoints for listing hardware sets and viewing individual hardware info.
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
 
-hardware_bp = Blueprint("hardware", __name__, url_prefix="/hardware")
+hardware_bp = Blueprint("hardware", __name__, url_prefix="/api/hardware")
 
 def init_hardware_if_empty():
     """Populate default hardware sets if the collection is entirely empty."""

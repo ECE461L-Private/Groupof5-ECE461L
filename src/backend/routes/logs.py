@@ -8,7 +8,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import datetime
 
-logs_bp = Blueprint("logs", __name__, url_prefix="/logs")
+logs_bp = Blueprint("logs", __name__, url_prefix="/api/logs")
 
 @logs_bp.route("/add", methods=["POST"])
 @jwt_required()

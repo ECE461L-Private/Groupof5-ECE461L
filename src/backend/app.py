@@ -45,6 +45,7 @@ def create_app():
 
     # ── Health-check root route ──────────────────────────────
     @app.route("/")
+    @app.route("/api/")
     def index():
         return {"status": "ok", "message": "Hello, World!"}
 
