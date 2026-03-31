@@ -51,7 +51,9 @@ def create_app():
     return app
 
 
+# ── Expose app globally for Serverless deployment (Vercel) ──
+app = create_app()
+
 # ── Run the dev server when executed directly ────────────────
 if __name__ == "__main__":  # pragma: no cover
-    app = create_app()
     app.run(debug=True, port=5001)
