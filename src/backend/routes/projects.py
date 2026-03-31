@@ -160,6 +160,109 @@ def join():
         "message": f"User '{username}' successfully joined project '{project_id}'",
     }), 200
 
+def _delete_project_logic(project_id):
+    """
+    Helper function to delete a project, release hardware, and remove from all members.
+    """
+    project = current_app.db.projects.find_one({"_id": project_id})
+    if not project:
+        return
+
+    # 1. Release all hardware checked out by this project
+    hw_cursor = current_app.db.hardware.find({f"projects.{project_id}": {"$exists": True}})
+    for hw in hw_cursor:
+        quantity = hw.get("projects", {}).get(project_id, 0)
+        if quantity > 0:
+            current_app.db.hardware.update_one(
+                {"_id": hw["_id"]},
+                {"$inc": {"available": quantity}, "$unset": {f"projects.{project_id}": ""}}
+            )
+
+    # 2. Remove project from all members' project lists
+    members = project.get("members", [])
+    if members:
+        current_app.db.users.update_many(
+            {"username": {"$in": members}},
+            {"$pull": {"projects": project_id}}
+        )
+
+    # 3. Delete the project
+    current_app.db.projects.delete_one({"_id": project_id})
+
+
+@projects_bp.route("/leave", methods=["POST"])
+@jwt_required()
+def leave():
+    """
+    Leave a project. If the user is the owner, the project is deleted.
+    Expects JSON: { "project_id": str }
+    """
+    data = request.get_json()
+    project_id = data.get("project_id")
+    username = get_jwt_identity()
+
+    if not project_id:
+        return jsonify({"status": "error", "message": "project_id is required"}), 400
+
+    project = current_app.db.projects.find_one({"_id": project_id})
+    if not project:
+        return jsonify({"status": "error", "message": "Project not found"}), 404
+
+    if username not in project.get("members", []):
+        return jsonify({"status": "error", "message": "You are not a member of this project"}), 400
+
+    # If user is owner, delete the whole project
+    if project.get("owner") == username:
+        _delete_project_logic(project_id)
+        return jsonify({
+            "status": "ok", 
+            "message": f"Owner left. Project '{project_id}' deleted and hardware returned."
+        }), 200
+
+    # Otherwise, just remove the user
+    current_app.db.projects.update_one(
+        {"_id": project_id},
+        {"$pull": {"members": username}}
+    )
+    current_app.db.users.update_one(
+        {"username": username},
+        {"$pull": {"projects": project_id}}
+    )
+
+    return jsonify({
+        "status": "ok",
+        "message": f"User '{username}' naturally left project '{project_id}'"
+    }), 200
+
+
+@projects_bp.route("/delete", methods=["DELETE"])
+@jwt_required()
+def delete():
+    """
+    Delete a project. Only the owner can execute this.
+    Expects JSON: { "project_id": str }
+    """
+    data = request.get_json()
+    project_id = data.get("project_id")
+    username = get_jwt_identity()
+
+    if not project_id:
+         return jsonify({"status": "error", "message": "project_id is required"}), 400
+    
+    project = current_app.db.projects.find_one({"_id": project_id})
+    if not project:
+         return jsonify({"status": "error", "message": "Project not found"}), 404
+
+    if project.get("owner") != username:
+         return jsonify({"status": "error", "message": "Only the project owner can delete it"}), 403
+
+    _delete_project_logic(project_id)
+    
+    return jsonify({
+        "status": "ok",
+        "message": f"Project '{project_id}' deleted and hardware returned."
+    }), 200
+
 
 @projects_bp.route("/get_project_info", methods=["GET"])
 @jwt_required()

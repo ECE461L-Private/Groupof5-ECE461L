@@ -1,40 +1,35 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from './AuthContext'
 
 function MyProfile() {
     const navigate = useNavigate()
-    const [user, setUser] = useState({
-        username: 'StudentUser',
-        email: 'student@example.com',
-        role: 'Student',
-        memberSince: '2023-08-15'
-    })
+    const { token, logout } = useAuth()
+    const [user, setUser] = useState({ username: '' })
     const [projects, setProjects] = useState([])
     const [usage, setUsage] = useState([])
 
     useEffect(() => {
-        // Attempt to get logged in user from localStorage
-        const storedUser = localStorage.getItem('username')
-        if (storedUser) {
-            setUser(prev => ({ ...prev, username: storedUser }))
+        const fetchProfile = async () => {
+            if (!token) return;
+            try {
+                const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                const json = await res.json()
+                if (json.status === 'ok') {
+                    setUser({ username: json.data.username })
+                    setProjects(json.data.projects)
+                    setUsage(json.data.usage)
+                }
+            } catch(e) { console.error("Failed to load profile", e) }
         }
-
-        // Mock data representing the user's projects
-        setProjects([
-            { id: '101', name: 'Robot Arm', status: 'Open' },
-            { id: '102', name: 'IoT Sensor', status: 'Open' }
-        ])
-
-        // Mock data representing the user's hardware usage
-        setUsage([
-            { hwSet: 'HWSet1', units: 2 },
-            { hwSet: 'HWSet2', units: 1 }
-        ])
-    }, [])
+        fetchProfile()
+    }, [token])
 
     const handleLogout = () => {
-        localStorage.removeItem('username')
-        navigate('/')
+        logout()
+        navigate('/login')
     }
 
     return (
@@ -45,10 +40,7 @@ function MyProfile() {
                 <div style={{ marginBottom: '20px' }}>
                     <h3 style={{ fontSize: '16px', borderBottom: '1px solid #ccc', paddingBottom: '5px' }}>User Info</h3>
                     <ul style={{ listStyleType: 'none', padding: 0, margin: '10px 0' }}>
-                        <li style={{ marginBottom: '5px' }}><strong>Username:</strong> {user.username}</li>
-                        <li style={{ marginBottom: '5px' }}><strong>Email:</strong> {user.email}</li>
-                        <li style={{ marginBottom: '5px' }}><strong>Role:</strong> {user.role}</li>
-                        <li style={{ marginBottom: '5px' }}><strong>Member since:</strong> {user.memberSince}</li>
+                        <li style={{ marginBottom: '5px' }}><strong>Username:</strong> {user.username || 'Loading...'}</li>
                     </ul>
                 </div>
 
@@ -58,7 +50,7 @@ function MyProfile() {
                         <ul style={{ listStyleType: 'none', padding: 0, margin: '10px 0' }}>
                             {projects.map((p, idx) => (
                                 <li key={idx} style={{ marginBottom: '5px' }}>
-                                    - {p.name} <span style={{ color: '#888' }}>[{p.status}]</span>
+                                    - {p.name} <span style={{ color: '#888' }}>[{p.id}]</span>
                                 </li>
                             ))}
                         </ul>
@@ -73,7 +65,7 @@ function MyProfile() {
                         <ul style={{ listStyleType: 'none', padding: 0, margin: '10px 0' }}>
                             {usage.map((u, idx) => (
                                 <li key={idx} style={{ marginBottom: '5px' }}>
-                                    - {u.hwSet} &rarr; {u.units} unit{u.units > 1 ? 's' : ''}
+                                    - {u.project_name} &rarr; Checked out {u.units} total unit{u.units > 1 ? 's' : ''}
                                 </li>
                             ))}
                         </ul>

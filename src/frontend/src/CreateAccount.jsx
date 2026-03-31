@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useAuth } from './AuthContext'
 
 function CreateAccount() {
     const [userid, setUserid] = useState('')
@@ -7,6 +8,7 @@ function CreateAccount() {
     const [confirmPassword, setConfirmPassword] = useState('')
     const [error, setError] = useState('')
     const navigate = useNavigate()
+    const { login } = useAuth()
 
     const handleCreate = async (e) => {
         e.preventDefault()
@@ -29,14 +31,12 @@ function CreateAccount() {
         })
         const data = await response.json()
         if (data.status === 'ok') {
+            login(data.access_token, userid)
             setError('Account created!')
-            navigate('/login')
+            navigate('/dashboard')
         } else {
             setError(data.message)
         }
-        //console.log('Creating account for', userid)
-        // alert('Account created! (placeholder)')
-        // navigate('/login')
     }
 
     return (

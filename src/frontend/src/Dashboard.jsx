@@ -1,38 +1,70 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from './AuthContext'
 
 function Dashboard() {
     const navigate = useNavigate()
+    const { token, username, logout } = useAuth()
     const [stats, setStats] = useState({ hwSets: 2, checkedOut: 0, projects: 0 })
     const [activityLog, setActivityLog] = useState([])
 
     useEffect(() => {
-        // Read real data from localStorage
-        const hw = JSON.parse(localStorage.getItem('hwState') || '[]')
-        const totalCheckedOut = hw.reduce((sum, h) => sum + (h.userCheckedOut || 0), 0)
+        if (!token) return;
 
-        const projects = JSON.parse(localStorage.getItem('projects') || '[]')
-        const joinedProjects = projects.filter(p => p.joined).length
+        const fetchDashboardData = async () => {
+            try {
+                const projRes = await fetch(`${import.meta.env.VITE_API_URL}/projects/get_projects`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                const projData = await projRes.json()
+                const joinedProjects = projData.status === 'ok' ? projData.projects.length : 0
 
-        const log = JSON.parse(localStorage.getItem('activityLog') || '[]')
+                const hwRes = await fetch(`${import.meta.env.VITE_API_URL}/hardware/list`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                const hwData = await hwRes.json()
+                let hwSets = 2;
+                let checkedOut = 0;
+                
+                if (hwData.status === 'ok') {
+                    hwSets = hwData.hardware.length;
+                    const userProjectIds = projData.projects ? projData.projects.map(p => p.project_id) : [];
+                    hwData.hardware.forEach(hw => {
+                        userProjectIds.forEach(pid => {
+                            if (hw.allocations && hw.allocations[pid]) {
+                                checkedOut += hw.allocations[pid];
+                            }
+                        })
+                    })
+                }
 
-        setStats({
-            hwSets: hw.length > 0 ? hw.length : 2,
-            checkedOut: totalCheckedOut,
-            projects: joinedProjects,
-        })
-        setActivityLog(log)
-    }, [])
+                setStats({ hwSets, checkedOut, projects: joinedProjects })
+
+                const logRes = await fetch(`${import.meta.env.VITE_API_URL}/logs/list`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                const logData = await logRes.json()
+                if (logData.status === 'ok') {
+                    setActivityLog(logData.logs || [])
+                }
+
+            } catch (err) {
+                console.error("Failed to fetch dashboard stats", err)
+            }
+        }
+
+        fetchDashboardData()
+    }, [token])
 
     const handleLogout = () => {
-        // TODO: clear session/token
+        logout()
         navigate('/login')
     }
 
     return (
         <div className="container">
             <div className="dashboard-box">
-                <h2>Welcome back, User!</h2>
+                <h2>Welcome back, {username}!</h2>
 
                 <div className="summary-cards">
                     <div className="card">
