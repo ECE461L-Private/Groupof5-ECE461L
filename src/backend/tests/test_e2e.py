@@ -1,325 +1,109 @@
 """
-End-to-end integration tests for the HaaS backend.
-
-These tests exercise multi-component flows that span multiple
-blueprints, verifying that the different parts of the application
-work together correctly.
+End-to-end backend flows that exercise multiple blueprints together.
 """
 
-import pytest
+import datetime
 
 
-class TestUserRegistrationLoginFlow:
-    """E2E: user registers → logs in successfully."""
+class TestUserProjectHardwareLifecycle:
+    def test_full_workflow_register_login_project_hardware_and_logs(self, client):
+        owner = client.post("/auth/add_user", json={"username": "owner", "password": "pass12345"})
+        member = client.post("/auth/add_user", json={"username": "member", "password": "pass12345"})
 
-    def test_register_then_login_succeeds(self, client):
-        """A newly registered user should be able to log in."""
-        # Step 1: Register
-        reg = client.post("/auth/add_user", json={
-            "username": "e2e_user",
-            "password": "e2e_pass",
-        })
-        assert reg.status_code == 201
+        owner_headers = {"Authorization": f"Bearer {owner.get_json()['access_token']}"}
+        member_headers = {"Authorization": f"Bearer {member.get_json()['access_token']}"}
 
-        # Step 2: Login with same credentials
-        login = client.post("/auth/login", json={
-            "username": "e2e_user",
-            "password": "e2e_pass",
-        })
-        assert login.status_code == 200
-        data = login.get_json()
-        assert data["status"] == "ok"
-        assert "e2e_user" in data["message"]
+        project_id = client.post("/projects/create", json={"name": "Full Flow"}, headers=owner_headers).get_json()["project_id"]
+        client.post("/projects/join", json={"project_id": project_id}, headers=member_headers)
 
-    def test_register_then_login_wrong_password_fails(self, client):
-        """Login after registration with wrong password should return 401."""
-        client.post("/auth/add_user", json={
-            "username": "pwd_test_user",
-            "password": "correct_pw",
-        })
-        resp = client.post("/auth/login", json={
-            "username": "pwd_test_user",
-            "password": "wrong_pw",
-        })
-        assert resp.status_code == 401
-        assert resp.get_json()["status"] == "error"
+        hardware = client.get("/hardware/list", headers=owner_headers).get_json()["hardware"]
+        hw_id = hardware[0]["hw_id"]
 
-    def test_duplicate_registration_blocked(self, client):
-        """Registering the same username twice should fail with 409."""
-        client.post("/auth/add_user", json={
-            "username": "taken_name",
-            "password": "first_pass",
-        })
-        dup = client.post("/auth/add_user", json={
-            "username": "taken_name",
-            "password": "second_pass",
-        })
-        assert dup.status_code == 409
-        assert dup.get_json()["status"] == "error"
+        checkout = client.post(
+            "/transactions/check_out",
+            json={"project_id": project_id, "hw_id": hw_id, "quantity": 3},
+            headers=owner_headers,
+        )
+        checkin = client.post(
+            "/transactions/check_in",
+            json={"project_id": project_id, "hw_id": hw_id, "quantity": 1},
+            headers=owner_headers,
+        )
+        client.post("/logs/add", json={"message": "Checked hardware"}, headers=owner_headers)
 
-    def test_login_before_registration_fails(self, client):
-        """Cannot login without registering first."""
-        resp = client.post("/auth/login", json={
-            "username": "unregistered",
-            "password": "nope",
-        })
-        assert resp.status_code == 404
+        project_info = client.get(f"/projects/get_project_info?project_id={project_id}", headers=owner_headers)
+        profile = client.get("/auth/me", headers=owner_headers)
+        logs = client.get("/logs/list", headers=owner_headers)
 
-
-class TestProjectLifecycleFlow:
-    """E2E: create a project → get info → join project."""
-
-    def test_create_then_get_info(self, client, app):
-        """After creating a project, its info should be retrievable."""
-        client.post("/auth/add_user", json={"username": "e2e_owner", "password": "pw"})
-        # Step 1: Create
-        create = client.post("/projects/create", json={
-            "name": "E2E Project",
-            "owner": "e2e_owner",
-        })
-        assert create.status_code == 201
-        data = create.get_json()
-        assert data["status"] == "ok"
-        proj_id = data["project_id"]
-
-        # Step 2: Get info (uses the dynamic project ID)
-        info = client.get(f"/projects/get_project_info?project_id={proj_id}")
-        assert info.status_code == 200
-        assert info.get_json()["status"] == "ok"
-
-    def test_create_then_join(self, client, app):
-        """After creating a project, another user can join it."""
-        client.post("/auth/add_user", json={"username": "owner_user", "password": "pw"})
-        client.post("/auth/add_user", json={"username": "joiner_user", "password": "pw"})
-        # Step 1: Create
-        create = client.post("/projects/create", json={
-            "name": "Team Project",
-            "owner": "owner_user",
-        })
-        proj_id = create.get_json()["project_id"]
-
-        # Step 2: Join
-        join = client.post("/projects/join", json={
-            "project_id": proj_id,
-            "username": "joiner_user",
-        })
-        assert join.status_code == 200
-        data = join.get_json()
-        assert data["status"] == "ok"
-        assert "joiner_user" in data["message"]
-
-    def test_get_projects_for_user(self, client, app):
-        """Should be able to list projects for a user."""
-        client.post("/auth/add_user", json={"username": "e2e_owner", "password": "pw"})
-        client.post("/projects/create", json={"name": "Team Project", "owner": "e2e_owner"})
-        resp = client.get("/projects/get_projects?username=e2e_owner")
-        assert resp.status_code == 200
-        assert resp.get_json()["status"] == "ok"
-
-
-class TestHardwareTransactionFlow:
-    """E2E: list hardware → check out → check in."""
-
-    def test_list_then_checkout(self, client, app):
-        """After listing hardware, a check_out should succeed."""
-        client.post("/auth/add_user", json={"username": "hw_owner", "password": "pw"})
-        create = client.post("/projects/create", json={"name": "Team Project", "owner": "hw_owner"})
-        proj_id = create.get_json()["project_id"]
-
-        # Step 1: List hardware
-        hw_list = client.get("/hardware/list")
-        assert hw_list.status_code == 200
-        assert hw_list.get_json()["status"] == "ok"
-
-        # Step 2: Check out from a hardware set
-        checkout = client.post("/transactions/check_out", json={
-            "project_id": proj_id,
-            "hw_id": "hw_set_1",
-            "quantity": 3,
-        })
         assert checkout.status_code == 200
-        data = checkout.get_json()
-        assert data["status"] == "ok"
-        assert "hw_set_1" in data["message"]
-        assert "3" in data["message"]
-
-    def test_checkout_then_checkin(self, client, app):
-        """After checking out hardware, checking it back in should succeed."""
-        client.post("/auth/add_user", json={"username": "hw_owner", "password": "pw"})
-        client.get("/hardware/list") # Initialize database
-        create = client.post("/projects/create", json={"name": "Team Project", "owner": "hw_owner"})
-        proj_id = create.get_json()["project_id"]
-
-        # Step 1: Check out
-        client.post("/transactions/check_out", json={
-            "project_id": proj_id,
-            "hw_id": "hw_set_2",
-            "quantity": 5,
-        })
-
-        # Step 2: Check in
-        checkin = client.post("/transactions/check_in", json={
-            "project_id": proj_id,
-            "hw_id": "hw_set_2",
-            "quantity": 5,
-        })
         assert checkin.status_code == 200
-        data = checkin.get_json()
-        assert data["status"] == "ok"
-        assert "hw_set_2" in data["message"]
+        assert project_info.get_json()["project"]["members"] == ["owner", "member"]
+        assert profile.get_json()["data"]["projects"] == [{"id": project_id, "name": "Full Flow"}]
+        assert logs.get_json()["logs"][0]["msg"] == "Checked hardware"
 
-    def test_get_hw_info_then_checkout(self, client, app):
-        """Can view HW info and then check out from that HW set."""
-        client.post("/auth/add_user", json={"username": "hw_owner", "password": "pw"})
-        create = client.post("/projects/create", json={"name": "Team Project", "owner": "hw_owner"})
-        proj_id = create.get_json()["project_id"]
+    def test_owner_delete_cleans_up_project_and_memberships(self, client):
+        owner = client.post("/auth/add_user", json={"username": "owner", "password": "pass12345"})
+        member = client.post("/auth/add_user", json={"username": "member", "password": "pass12345"})
+        owner_headers = {"Authorization": f"Bearer {owner.get_json()['access_token']}"}
+        member_headers = {"Authorization": f"Bearer {member.get_json()['access_token']}"}
 
-        # Step 1: Get info
-        info = client.get("/hardware/get_hw_info?hw_id=hw_set_1")
-        assert info.status_code == 200
-        assert "hw_set_1" in info.get_json()["message"]
+        project_id = client.post("/projects/create", json={"name": "Cleanup"}, headers=owner_headers).get_json()["project_id"]
+        client.post("/projects/join", json={"project_id": project_id}, headers=member_headers)
+        client.get("/hardware/list", headers=owner_headers)
+        client.post(
+            "/transactions/check_out",
+            json={"project_id": project_id, "hw_id": "hw_set_1", "quantity": 2},
+            headers=owner_headers,
+        )
 
-        # Step 2: Check out
-        checkout = client.post("/transactions/check_out", json={
-            "project_id": proj_id,
-            "hw_id": "hw_set_1",
-            "quantity": 2,
-        })
-        assert checkout.status_code == 200
+        delete_resp = client.delete("/projects/delete", json={"project_id": project_id}, headers=owner_headers)
+        owner_projects = client.get("/projects/get_projects", headers=owner_headers).get_json()["projects"]
+        member_projects = client.get("/projects/get_projects", headers=member_headers).get_json()["projects"]
+        hardware = client.get("/hardware/get_hw_info?hw_id=hw_set_1", headers=owner_headers).get_json()["hardware"]
 
-
-class TestFullAppFlow:
-    """E2E: register → login → create project → check out → check in."""
-
-    def test_complete_user_workflow(self, client, app):
-        """Full happy-path workflow across all blueprints."""
-        # 1. Register
-        reg = client.post("/auth/add_user", json={
-            "username": "fullflow_user",
-            "password": "fullflow_pass",
-        })
-
-        # 2. Login
-        login = client.post("/auth/login", json={
-            "username": "fullflow_user",
-            "password": "fullflow_pass",
-        })
-        assert login.status_code == 200
-
-        # 3. Create project
-        create = client.post("/projects/create", json={
-            "name": "Full Flow Project",
-            "owner": "fullflow_user",
-        })
-        assert create.status_code == 201
-        proj_id = create.get_json()["project_id"]
-
-        # 4. List hardware
-        hw = client.get("/hardware/list")
-        assert hw.status_code == 200
-
-        # 5. Check out hardware for the project
-        checkout = client.post("/transactions/check_out", json={
-            "project_id": proj_id,
-            "hw_id": "hw_set_1",
-            "quantity": 10,
-        })
-        assert checkout.status_code == 200
-
-        # 6. Check in hardware
-        checkin = client.post("/transactions/check_in", json={
-            "project_id": proj_id,
-            "hw_id": "hw_set_1",
-            "quantity": 10,
-        })
-        assert checkin.status_code == 200
-
-        # 7. Get project info
-        info = client.get(f"/projects/get_project_info?project_id={proj_id}")
-        assert info.status_code == 200
-
-    def test_health_check_accessible_throughout(self, client):
-        """The root health check should always be accessible."""
-        # Before any auth
-        resp1 = client.get("/")
-        assert resp1.status_code == 200
-
-        # After some operations
-        client.post("/auth/add_user", json={
-            "username": "healthcheck_user",
-            "password": "pass",
-        })
-        resp2 = client.get("/")
-        assert resp2.status_code == 200
-        assert resp2.get_json()["status"] == "ok"
+        assert delete_resp.status_code == 200
+        assert owner_projects == []
+        assert member_projects == []
+        assert hardware["available"] == hardware["capacity"]
+        assert hardware["allocations"] == {}
 
 
-class TestCrossBlueprintConsistency:
-    """E2E: verify responses are consistently formatted across blueprints."""
+class TestErrorAndConsistencyFlows:
+    def test_log_routes_handle_missing_message_and_order_recent_items(self, client, app, auth_headers):
+        headers = auth_headers("logger", "pass12345")
+        base_time = datetime.datetime(2026, 1, 1, 12, 0, 0)
+        app.db.logs.insert_many(
+            [
+                {"username": "logger", "message": "older", "timestamp": base_time},
+                {"username": "logger", "message": "newer", "timestamp": base_time + datetime.timedelta(minutes=1)},
+                {"username": "other", "message": "ignored", "timestamp": base_time + datetime.timedelta(minutes=2)},
+            ]
+        )
 
-    def test_all_endpoints_return_json(self, client, app):
-        """Every endpoint should return application/json."""
-        client.post("/auth/add_user", json={"username": "consistency_user", "password": "pass"})
-        client.post("/auth/add_user", json={"username": "user1", "password": "pw"})
-        client.post("/auth/add_user", json={"username": "O", "password": "pw"})
-        client.post("/auth/add_user", json={"username": "u1", "password": "pw"})
+        missing = client.post("/logs/add", json={}, headers=headers)
+        logs = client.get("/logs/list", headers=headers).get_json()
 
-        # Setup valid data to test against
-        create = client.post("/projects/create", json={"name": "P", "owner": "O"})
-        p1 = create.get_json()["project_id"]
+        assert missing.status_code == 400
+        assert logs["status"] == "ok"
+        assert [entry["msg"] for entry in logs["logs"]] == ["newer", "older"]
 
-        endpoints = [
-            ("GET", "/"),
-            ("GET", "/hardware/list"),
-            ("GET", "/hardware/get_hw_info?hw_id=hw_set_1"),
-            ("GET", "/projects/get_projects?username=user1"),
-            ("GET", f"/projects/get_project_info?project_id={p1}"),
-            ("POST", "/auth/login", {"username": "consistency_user", "password": "pass"}),
-            ("POST", "/projects/create", {"name": "P2", "owner": "O"}),
-            ("POST", "/projects/join", {"project_id": p1, "username": "u1"}),
-            ("POST", "/transactions/check_out", {"project_id": p1, "hw_id": "hw_set_1", "quantity": 1}),
-            ("POST", "/transactions/check_in", {"project_id": p1, "hw_id": "hw_set_1", "quantity": 1}),
+    def test_every_successful_json_endpoint_returns_status_ok(self, client, auth_headers):
+        headers = auth_headers("status_user", "pass12345")
+        project_id = client.post("/projects/create", json={"name": "Status"}, headers=headers).get_json()["project_id"]
+        client.get("/hardware/list", headers=headers)
+
+        responses = [
+            client.get("/", headers=headers),
+            client.post("/auth/login", json={"username": "status_user", "password": "pass12345"}),
+            client.get("/projects/get_projects", headers=headers),
+            client.get(f"/projects/get_project_info?project_id={project_id}", headers=headers),
+            client.get("/hardware/get_hw_info?hw_id=hw_set_1", headers=headers),
+            client.post("/transactions/check_out", json={"project_id": project_id, "hw_id": "hw_set_1", "quantity": 1}, headers=headers),
+            client.post("/transactions/check_in", json={"project_id": project_id, "hw_id": "hw_set_1", "quantity": 1}, headers=headers),
+            client.post("/logs/add", json={"message": "hello"}, headers=headers),
+            client.get("/logs/list", headers=headers),
+            client.get("/auth/me", headers=headers),
         ]
 
-        for entry in endpoints:
-            method = entry[0]
-            url = entry[1]
-            json_body = entry[2] if len(entry) > 2 else None
-
-            if method == "GET":
-                resp = client.get(url)
-            else:
-                resp = client.post(url, json=json_body)
-
-            assert resp.content_type == "application/json", f"{method} {url} did not return JSON"
-
-    def test_all_success_responses_have_status_ok(self, client, app):
-        """All successful responses should have status == 'ok'."""
-        client.post("/auth/add_user", json={"username": "status_user", "password": "pass"})
-        client.post("/auth/add_user", json={"username": "O", "password": "pw"})
-        client.post("/auth/add_user", json={"username": "u", "password": "pw"})
-        
-        # Setup valid project
-        create = client.post("/projects/create", json={"name": "P", "owner": "O"})
-        p = create.get_json()["project_id"]
-
-        endpoints = [
-            ("GET", "/"),
-            ("GET", "/hardware/list"),
-            ("GET", "/projects/get_projects?username=u"),
-            ("POST", "/auth/login", {"username": "status_user", "password": "pass"}),
-            ("POST", "/transactions/check_out", {"project_id": p, "hw_id": "hw_set_1", "quantity": 1}),
-        ]
-
-        for entry in endpoints:
-            method = entry[0]
-            url = entry[1]
-            json_body = entry[2] if len(entry) > 2 else None
-
-            if method == "GET":
-                resp = client.get(url)
-            else:
-                resp = client.post(url, json=json_body)
-
-            data = resp.get_json()
-            assert data["status"] == "ok", f"{method} {url} status was '{data['status']}', expected 'ok'"
+        assert all(resp.content_type == "application/json" for resp in responses)
+        assert all(resp.get_json()["status"] == "ok" for resp in responses)

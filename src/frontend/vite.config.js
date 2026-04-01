@@ -8,5 +8,19 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/setupTests.js',
     css: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      include: ['src/**/*.{js,jsx}'],
+      exclude: [
+        'src/**/*.test.{js,jsx}',
+        'src/main.jsx',
+        'src/setupTests.js',
+        'src/testUtils.jsx',
+      ],
+      thresholds: {
+        lines: 100,
+      },
+    },
   },
 })

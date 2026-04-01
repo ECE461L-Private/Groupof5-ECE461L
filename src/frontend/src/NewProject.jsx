@@ -35,7 +35,7 @@ function NewProject() {
                     id: p.project_id,
                     name: p.name,
                     description: `Owner: ${p.owner}`,
-                    joined: true
+                    joined: p.joined ?? true
                 }))
                 setProjects(mapped)
             }

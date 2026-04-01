@@ -1,53 +1,50 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { screen } from '@testing-library/react'
 import App from './App'
-
-// Helper to render App with a specific initial route
-function renderApp(initialRoute = '/') {
-    return render(
-        <MemoryRouter initialEntries={[initialRoute]}>
-            <App />
-        </MemoryRouter>
-    )
-}
+import { renderWithProviders } from './testUtils'
 
 describe('App Routing', () => {
+    beforeEach(() => {
+        localStorage.clear()
+        global.fetch = vi.fn(() =>
+            Promise.resolve({
+                json: () => Promise.resolve({ status: 'ok', projects: [], hardware: [], logs: [] }),
+            })
+        )
+    })
 
     it('redirects / to the login page', () => {
-        renderApp('/')
+        renderWithProviders(<App />, { route: '/' })
         expect(screen.getByRole('heading', { name: /haas login/i })).toBeInTheDocument()
     })
 
-    it('renders the Login page at /login', () => {
-        renderApp('/login')
+    it('renders the login page for /login', () => {
+        renderWithProviders(<App />, { route: '/login' })
         expect(screen.getByRole('heading', { name: /haas login/i })).toBeInTheDocument()
     })
 
-    it('renders the Create Account page at /create-account', () => {
-        renderApp('/create-account')
+    it('renders the create account page for /create-account', () => {
+        renderWithProviders(<App />, { route: '/create-account' })
         expect(screen.getByRole('heading', { name: /create account/i })).toBeInTheDocument()
     })
 
-    it('does not render Create Account heading on login page', () => {
-        renderApp('/login')
-        expect(screen.queryByRole('heading', { name: /create account/i })).not.toBeInTheDocument()
+    it('redirects protected routes to login when unauthenticated', () => {
+        renderWithProviders(<App />, { route: '/dashboard' })
+        expect(screen.getByRole('heading', { name: /haas login/i })).toBeInTheDocument()
     })
 
-    it('does not render Login heading on create-account page', () => {
-        renderApp('/create-account')
-        expect(screen.queryByRole('heading', { name: /haas login/i })).not.toBeInTheDocument()
+    it('renders protected routes when authenticated', async () => {
+        renderWithProviders(<App />, { route: '/profile', token: 'token-123', username: 'shaun' })
+        expect(screen.getByRole('heading', { name: /my profile/i })).toBeInTheDocument()
     })
 
-    it('login page has a link that points to /create-account', () => {
-        renderApp('/login')
-        const link = screen.getByRole('link', { name: /create account/i })
-        expect(link).toHaveAttribute('href', '/create-account')
+    it('renders the hardware page when authenticated', async () => {
+        renderWithProviders(<App />, { route: '/hardware', token: 'token-123', username: 'shaun' })
+        expect(screen.getByRole('heading', { name: /view hardware/i })).toBeInTheDocument()
     })
 
-    it('create-account page has a link that points to /login', () => {
-        renderApp('/create-account')
-        const link = screen.getByRole('link', { name: /login/i })
-        expect(link).toHaveAttribute('href', '/login')
+    it('renders the new project page when authenticated', async () => {
+        renderWithProviders(<App />, { route: '/new-project', token: 'token-123', username: 'shaun' })
+        expect(screen.getByRole('heading', { name: /new project/i })).toBeInTheDocument()
     })
 })

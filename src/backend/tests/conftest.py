@@ -1,22 +1,83 @@
 """
-Shared fixtures for the test suite.
-
-Fixtures defined here are automatically available to every test file
-under the tests/ directory — no import needed.
+Shared fixtures and lightweight in-memory Mongo doubles for backend tests.
 """
 
-import sys
+import copy
 import os
+import sys
+from unittest.mock import patch
+
 import pytest
 
-# Ensure the backend root is on sys.path so `from routes.xxx` imports work
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app import create_app
 
 
-from unittest.mock import patch
-import copy
+def _get_nested(doc, dotted_key):
+    current = doc
+    for part in dotted_key.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return None, False
+        current = current[part]
+    return current, True
+
+
+def _set_nested(doc, dotted_key, value):
+    current = doc
+    parts = dotted_key.split(".")
+    for part in parts[:-1]:
+        current = current.setdefault(part, {})
+    current[parts[-1]] = value
+
+
+def _delete_nested(doc, dotted_key):
+    current = doc
+    parts = dotted_key.split(".")
+    for part in parts[:-1]:
+        current = current.get(part)
+        if not isinstance(current, dict):
+            return
+    if isinstance(current, dict):
+        current.pop(parts[-1], None)
+
+
+def _matches(doc, query):
+    if not query:
+        return True
+
+    for key, expected in query.items():
+        actual, exists = _get_nested(doc, key)
+
+        if isinstance(expected, dict):
+            if "$in" in expected and actual not in expected["$in"]:
+                return False
+            if "$exists" in expected and exists is not expected["$exists"]:
+                return False
+            continue
+
+        if not exists or actual != expected:
+            return False
+
+    return True
+
+
+class MockCursor:
+    def __init__(self, docs):
+        self.docs = docs
+
+    def sort(self, key, direction):
+        reverse = direction == -1
+        self.docs.sort(key=lambda doc: _get_nested(doc, key)[0], reverse=reverse)
+        return self
+
+    def limit(self, count):
+        self.docs = self.docs[:count]
+        return self
+
+    def __iter__(self):
+        return iter(self.docs)
+
 
 class MockCollection:
     def __init__(self):
@@ -24,49 +85,25 @@ class MockCollection:
 
     def find_one(self, query):
         for doc in self.data:
-            match = True
-            for k, v in query.items():
-                if doc.get(k) != v:
-                    match = False
-                    break
-            if match:
+            if _matches(doc, query):
                 return doc
         return None
 
     def find(self, query):
-        if not query:
-            return self.data.copy()
-            
-        results = []
-        # Support for {"_id": {"$in": [...]}} queries
-        for doc in self.data:
-            match = True
-            for k, v in query.items():
-                if isinstance(v, dict) and "$in" in v:
-                    if doc.get(k) not in v["$in"]:
-                        match = False
-                        break
-                elif doc.get(k) != v:
-                    match = False
-                    break
-            if match:
-                results.append(doc)
-        return results
+        return MockCursor([doc for doc in self.data if _matches(doc, query)])
 
     def insert_one(self, doc):
         import uuid
+
         if "_id" not in doc:
             doc["_id"] = str(uuid.uuid4())
-        
-        # We need to append a deepcopy to our data store, 
-        # but PyMongo natively mutates the passed-in `doc` object to add `_id`.
-        # So we leave the `_id` in `doc` for the caller to use.
+
         self.data.append(copy.deepcopy(doc))
-        
-        # Return a mock result object that has an inserted_id attribute
+
         class InsertOneResult:
             def __init__(self, inserted_id):
                 self.inserted_id = inserted_id
+
         return InsertOneResult(doc["_id"])
 
     def insert_many(self, docs):
@@ -74,45 +111,60 @@ class MockCollection:
             self.data.append(copy.deepcopy(doc))
 
     def count_documents(self, query):
-        return len(self.find(query))
+        return len(list(self.find(query)))
 
     def update_one(self, query, update):
         target = self.find_one(query)
-        if not target:
+        if target is None:
             return
-            
-        # apply $addToSet
-        if "$addToSet" in update:
-            for k, v in update["$addToSet"].items():
-                if k not in target:
-                    target[k] = []
-                if isinstance(target[k], list) and v not in target[k]:
-                    target[k].append(v)
-                    
-        # apply $inc (used for hardware allocations)
-        if "$inc" in update:
-            for k, amount in update["$inc"].items():
-                # k is like "projects.proj_123"
-                parts = k.split(".")
-                curr = target
-                for i, part in enumerate(parts):
-                    if i == len(parts) - 1:
-                        # end of path
-                        curr[part] = curr.get(part, 0) + amount
-                    else:
-                        if part not in curr:
-                            curr[part] = {}
-                        curr = curr[part]
+        self._apply_update(target, update)
+
+    def update_many(self, query, update):
+        for doc in self.data:
+            if _matches(doc, query):
+                self._apply_update(doc, update)
+
+    def delete_one(self, query):
+        for index, doc in enumerate(self.data):
+            if _matches(doc, query):
+                del self.data[index]
+                return
+
+    def _apply_update(self, target, update):
+        for key, value in update.get("$addToSet", {}).items():
+            current, exists = _get_nested(target, key)
+            if not exists:
+                _set_nested(target, key, [])
+                current = _get_nested(target, key)[0]
+            if isinstance(current, list) and value not in current:
+                current.append(value)
+
+        for key, amount in update.get("$inc", {}).items():
+            current, exists = _get_nested(target, key)
+            _set_nested(target, key, (current if exists else 0) + amount)
+
+        for key, value in update.get("$pull", {}).items():
+            current, exists = _get_nested(target, key)
+            if exists and isinstance(current, list):
+                _set_nested(target, key, [item for item in current if item != value])
+
+        for key in update.get("$unset", {}):
+            _delete_nested(target, key)
+
+        for key, value in update.get("$set", {}).items():
+            _set_nested(target, key, value)
+
 
 class MockDB:
     def __init__(self):
         self.users = MockCollection()
         self.projects = MockCollection()
         self.hardware = MockCollection()
+        self.logs = MockCollection()
+
 
 @pytest.fixture
 def app():
-    """Create the Flask application in testing mode."""
     with patch("app.MongoClient"):
         app = create_app()
         app.config["TESTING"] = True
@@ -122,16 +174,17 @@ def app():
 
 @pytest.fixture
 def client(app):
-    """A Flask test client for sending requests without running the server."""
     return app.test_client()
 
 
 @pytest.fixture
-def sample_project():
-    """Return a basic project dict for use in tests."""
-    return {
-        "name": "HaaS Demo",
-        "owner": "shaunak",
-        "members": ["shaunak"],
-        "hardware_sets": {},
-    }
+def auth_headers(client):
+    def _register_and_auth(username="tester", password="secret123"):
+        response = client.post(
+            "/auth/add_user",
+            json={"username": username, "password": password},
+        )
+        token = response.get_json()["access_token"]
+        return {"Authorization": f"Bearer {token}"}
+
+    return _register_and_auth

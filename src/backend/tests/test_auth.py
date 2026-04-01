@@ -1,210 +1,96 @@
 """
-Tests for the auth blueprint (/auth).
-
-Uses Flask's test client to send real HTTP requests to the login
-and add_user endpoints and validates status codes, JSON structure,
-and response content — including error paths introduced by bcrypt
-password hashing and input validation.
+Tests for auth routes, including profile lookup for authenticated users.
 """
-
-import pytest
 
 
 class TestAddUserEndpoint:
-    """Tests for POST /auth/add_user."""
+    def test_add_user_returns_access_token(self, client):
+        resp = client.post("/auth/add_user", json={"username": "newuser", "password": "newpass123"})
 
-    def test_add_user_returns_201(self, client):
-        """A valid add_user request should return HTTP 201."""
-        resp = client.post("/auth/add_user", json={
-            "username": "newuser",
-            "password": "newpass123",
-        })
         assert resp.status_code == 201
-
-    def test_add_user_returns_json(self, client):
-        """The response should be valid JSON."""
-        resp = client.post("/auth/add_user", json={
-            "username": "newuser",
-            "password": "newpass123",
-        })
-        data = resp.get_json()
-        assert data is not None
-
-    def test_add_user_has_status_ok(self, client):
-        """The JSON body should contain status == 'ok'."""
-        resp = client.post("/auth/add_user", json={
-            "username": "newuser",
-            "password": "newpass123",
-        })
-        data = resp.get_json()
-        assert data["status"] == "ok"
-
-    def test_add_user_message_contains_username(self, client):
-        """The response message should echo back the submitted username."""
-        resp = client.post("/auth/add_user", json={
-            "username": "bob",
-            "password": "b0bpass",
-        })
-        data = resp.get_json()
-        assert "bob" in data["message"]
-
-    def test_add_user_wrong_method_returns_405(self, client):
-        """GET requests to /auth/add_user should be rejected with 405."""
-        resp = client.get("/auth/add_user")
-        assert resp.status_code == 405
-
-    def test_add_user_response_keys(self, client):
-        """Response JSON should contain exactly 'status' and 'message' keys."""
-        resp = client.post("/auth/add_user", json={
-            "username": "newuser",
-            "password": "newpass",
-        })
-        data = resp.get_json()
-        assert set(data.keys()) == {"status", "message"}
+        assert resp.content_type == "application/json"
+        assert set(resp.get_json().keys()) == {"status", "message", "access_token"}
 
     def test_add_user_missing_username_returns_400(self, client):
-        """Omitting the username should return HTTP 400."""
-        resp = client.post("/auth/add_user", json={
-            "password": "somepass",
-        })
+        resp = client.post("/auth/add_user", json={"password": "somepass"})
         assert resp.status_code == 400
 
     def test_add_user_missing_password_returns_400(self, client):
-        """Omitting the password should return HTTP 400."""
-        resp = client.post("/auth/add_user", json={
-            "username": "someuser",
-        })
-        assert resp.status_code == 400
-
-    def test_add_user_empty_body_returns_400(self, client):
-        """Sending an empty JSON body should return HTTP 400."""
-        resp = client.post("/auth/add_user", json={})
+        resp = client.post("/auth/add_user", json={"username": "someuser"})
         assert resp.status_code == 400
 
     def test_add_user_duplicate_returns_409(self, client):
-        """Registering the same username twice should return HTTP 409."""
-        client.post("/auth/add_user", json={
-            "username": "duplicate",
-            "password": "pass1",
-        })
-        resp = client.post("/auth/add_user", json={
-            "username": "duplicate",
-            "password": "pass2",
-        })
-        assert resp.status_code == 409
+        client.post("/auth/add_user", json={"username": "duplicate", "password": "pass1"})
 
-    def test_add_user_duplicate_has_error_status(self, client):
-        """Duplicate registration should return status == 'error'."""
-        client.post("/auth/add_user", json={
-            "username": "dup_user",
-            "password": "pass1",
-        })
-        resp = client.post("/auth/add_user", json={
-            "username": "dup_user",
-            "password": "pass2",
-        })
-        data = resp.get_json()
-        assert data["status"] == "error"
+        resp = client.post("/auth/add_user", json={"username": "duplicate", "password": "pass2"})
+
+        assert resp.status_code == 409
+        assert resp.get_json()["status"] == "error"
+
+    def test_add_user_wrong_method_returns_405(self, client):
+        assert client.get("/auth/add_user").status_code == 405
 
 
 class TestLoginEndpoint:
-    """Tests for POST /auth/login."""
-
-    def test_login_returns_200(self, client):
-        """A valid login request should return HTTP 200."""
+    def test_login_returns_access_token(self, client):
         client.post("/auth/add_user", json={"username": "testuser", "password": "testpass123"})
-        resp = client.post("/auth/login", json={
-            "username": "testuser",
-            "password": "testpass123",
-        })
+
+        resp = client.post("/auth/login", json={"username": "testuser", "password": "testpass123"})
+
         assert resp.status_code == 200
-
-    def test_login_returns_json(self, client):
-        """The response should be valid JSON."""
-        client.post("/auth/add_user", json={"username": "testuser", "password": "testpass123"})
-        resp = client.post("/auth/login", json={
-            "username": "testuser",
-            "password": "testpass123",
-        })
-        data = resp.get_json()
-        assert data is not None
-
-    def test_login_has_status_ok(self, client):
-        """The JSON body should contain status == 'ok'."""
-        client.post("/auth/add_user", json={"username": "testuser", "password": "testpass123"})
-        resp = client.post("/auth/login", json={
-            "username": "testuser",
-            "password": "testpass123",
-        })
-        data = resp.get_json()
-        assert data["status"] == "ok"
-
-    def test_login_message_contains_username(self, client):
-        """The response message should echo back the submitted username."""
-        client.post("/auth/add_user", json={"username": "alice", "password": "s3cret"})
-        resp = client.post("/auth/login", json={
-            "username": "alice",
-            "password": "s3cret",
-        })
-        data = resp.get_json()
-        assert "alice" in data["message"]
-
-    def test_login_wrong_method_returns_405(self, client):
-        """GET requests to /auth/login should be rejected with 405."""
-        resp = client.get("/auth/login")
-        assert resp.status_code == 405
-
-    def test_login_content_type_is_json(self, client):
-        """Response Content-Type should be application/json."""
-        client.post("/auth/add_user", json={"username": "testuser", "password": "pass"})
-        resp = client.post("/auth/login", json={
-            "username": "testuser",
-            "password": "pass",
-        })
         assert resp.content_type == "application/json"
+        assert set(resp.get_json().keys()) == {"status", "message", "access_token"}
 
     def test_login_missing_username_returns_400(self, client):
-        """Omitting the username should return HTTP 400."""
-        resp = client.post("/auth/login", json={
-            "password": "somepass",
-        })
-        assert resp.status_code == 400
+        assert client.post("/auth/login", json={"password": "somepass"}).status_code == 400
 
     def test_login_missing_password_returns_400(self, client):
-        """Omitting the password should return HTTP 400."""
-        resp = client.post("/auth/login", json={
-            "username": "someuser",
-        })
-        assert resp.status_code == 400
-
-    def test_login_empty_body_returns_400(self, client):
-        """Sending an empty JSON body should return HTTP 400."""
-        resp = client.post("/auth/login", json={})
-        assert resp.status_code == 400
+        assert client.post("/auth/login", json={"username": "someuser"}).status_code == 400
 
     def test_login_nonexistent_user_returns_404(self, client):
-        """Login with an unregistered username should return HTTP 404."""
-        resp = client.post("/auth/login", json={
-            "username": "ghost",
-            "password": "doesntmatter",
-        })
-        assert resp.status_code == 404
+        assert client.post("/auth/login", json={"username": "ghost", "password": "nope"}).status_code == 404
 
     def test_login_wrong_password_returns_401(self, client):
-        """Login with incorrect password should return HTTP 401."""
         client.post("/auth/add_user", json={"username": "secure_user", "password": "correct"})
-        resp = client.post("/auth/login", json={
-            "username": "secure_user",
-            "password": "wrong",
-        })
-        assert resp.status_code == 401
 
-    def test_login_wrong_password_has_error_status(self, client):
-        """Wrong password response should have status == 'error'."""
-        client.post("/auth/add_user", json={"username": "user1", "password": "right"})
-        resp = client.post("/auth/login", json={
-            "username": "user1",
-            "password": "wrong",
-        })
+        resp = client.post("/auth/login", json={"username": "secure_user", "password": "wrong"})
+
+        assert resp.status_code == 401
+        assert resp.get_json()["status"] == "error"
+
+    def test_login_wrong_method_returns_405(self, client):
+        assert client.get("/auth/login").status_code == 405
+
+
+class TestMeEndpoint:
+    def test_me_returns_profile_with_projects_and_usage(self, client, app, auth_headers):
+        headers = auth_headers("alice", "pw123456")
+        app.db.projects.insert_one({"_id": "proj_1", "name": "Alpha", "owner": "alice", "members": ["alice"]})
+        app.db.users.update_one({"username": "alice"}, {"$set": {"projects": ["proj_1"]}})
+        app.db.hardware.insert_one(
+            {
+                "_id": "hw_1",
+                "name": "HW Set",
+                "capacity": 10,
+                "available": 7,
+                "projects": {"proj_1": 3},
+            }
+        )
+
+        resp = client.get("/auth/me", headers=headers)
         data = resp.get_json()
-        assert data["status"] == "error"
+
+        assert resp.status_code == 200
+        assert data["status"] == "ok"
+        assert data["data"]["username"] == "alice"
+        assert data["data"]["projects"] == [{"id": "proj_1", "name": "Alpha"}]
+        assert data["data"]["usage"] == [{"project_name": "Alpha", "units": 3}]
+
+    def test_me_returns_404_for_deleted_user(self, client, app, auth_headers):
+        headers = auth_headers("gone", "pw123456")
+        app.db.users.delete_one({"username": "gone"})
+
+        resp = client.get("/auth/me", headers=headers)
+
+        assert resp.status_code == 404
+        assert resp.get_json()["message"] == "User not found"
