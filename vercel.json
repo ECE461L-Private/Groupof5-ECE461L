@@ -4,11 +4,6 @@
   "installCommand": "npm --prefix src/frontend ci",
   "buildCommand": "npm --prefix src/frontend run build",
   "outputDirectory": "src/frontend/dist",
-  "functions": {
-    "api/index.py": {
-      "excludeFiles": "{src/backend/tests/**,src/frontend/**,docs/**,.github/**}"
-    }
-  },
   "rewrites": [
     {
       "source": "/(.*)",
