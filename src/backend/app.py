@@ -31,11 +31,18 @@ def create_app():
     app.db = db
 
     # ── Register route blueprints ────────────────────────────
-    from routes.auth import auth_bp
-    from routes.projects import projects_bp
-    from routes.hardware import hardware_bp
-    from routes.transactions import transactions_bp
-    from routes.logs import logs_bp
+    try:  # pragma: no cover
+        from .routes.auth import auth_bp
+        from .routes.projects import projects_bp
+        from .routes.hardware import hardware_bp
+        from .routes.transactions import transactions_bp
+        from .routes.logs import logs_bp
+    except ImportError:
+        from routes.auth import auth_bp
+        from routes.projects import projects_bp
+        from routes.hardware import hardware_bp
+        from routes.transactions import transactions_bp
+        from routes.logs import logs_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(projects_bp)
