@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "name": "haas-system",
   "installCommand": "npm --prefix src/frontend ci",
   "buildCommand": "npm --prefix src/frontend run build",
   "outputDirectory": "src/frontend/dist",
