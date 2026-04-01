@@ -57,7 +57,7 @@ describe('Login Component', () => {
 
         await vi.waitFor(() => {
             expect(global.fetch).toHaveBeenCalledWith(
-                'undefined/auth/login',
+                '/api/auth/login',
                 expect.objectContaining({
                     method: 'POST',
                     body: JSON.stringify({ username: 'bob', password: 'pass' }),

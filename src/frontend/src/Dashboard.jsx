@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
+import { API_BASE } from './apiBase'
 
 function Dashboard() {
     const navigate = useNavigate()
@@ -13,13 +14,13 @@ function Dashboard() {
 
         const fetchDashboardData = async () => {
             try {
-                const projRes = await fetch(`${import.meta.env.VITE_API_URL}/projects/get_projects`, {
+                const projRes = await fetch(`${API_BASE}/projects/get_projects`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
                 const projData = await projRes.json()
                 const joinedProjects = projData.status === 'ok' ? projData.projects.length : 0
 
-                const hwRes = await fetch(`${import.meta.env.VITE_API_URL}/hardware/list`, {
+                const hwRes = await fetch(`${API_BASE}/hardware/list`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
                 const hwData = await hwRes.json()
@@ -40,7 +41,7 @@ function Dashboard() {
 
                 setStats({ hwSets, checkedOut, projects: joinedProjects })
 
-                const logRes = await fetch(`${import.meta.env.VITE_API_URL}/logs/list`, {
+                const logRes = await fetch(`${API_BASE}/logs/list`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
                 const logData = await logRes.json()

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
+import { API_BASE } from './apiBase'
 
 function MyProfile() {
     const navigate = useNavigate()
@@ -13,7 +14,7 @@ function MyProfile() {
         const fetchProfile = async () => {
             if (!token) return;
             try {
-                const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
+                const res = await fetch(`${API_BASE}/auth/me`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
                 const json = await res.json()

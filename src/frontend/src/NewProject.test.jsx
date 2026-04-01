@@ -68,7 +68,7 @@ describe('NewProject Component', () => {
         await userEvent.click(screen.getByRole('button', { name: /^join$/i }))
 
         expect(global.fetch).toHaveBeenCalledWith(
-            'undefined/projects/join',
+            '/api/projects/join',
             expect.objectContaining({ method: 'POST' })
         )
     })

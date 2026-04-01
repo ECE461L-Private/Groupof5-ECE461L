@@ -63,7 +63,7 @@ describe('CreateAccount Component', () => {
 
         await vi.waitFor(() => {
             expect(global.fetch).toHaveBeenCalledWith(
-                'undefined/auth/add_user',
+                '/api/auth/add_user',
                 expect.objectContaining({
                     method: 'POST',
                     body: JSON.stringify({ username: 'alice', password: 'pass123' }),

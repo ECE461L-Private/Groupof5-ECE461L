@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
+import { API_BASE } from './apiBase'
 
 const logActivity = async (msg, token) => {
     try {
-        await fetch(`${import.meta.env.VITE_API_URL}/logs/add`, {
+        await fetch(`${API_BASE}/logs/add`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ message: msg })
@@ -26,7 +27,7 @@ function ViewHardware() {
     const fetchData = async () => {
         if (!token) return;
         try {
-            const pRes = await fetch(`${import.meta.env.VITE_API_URL}/projects/get_projects`, { headers: { 'Authorization': `Bearer ${token}` } })
+            const pRes = await fetch(`${API_BASE}/projects/get_projects`, { headers: { 'Authorization': `Bearer ${token}` } })
             const pData = await pRes.json()
             let firstProjId = selectedProject;
             if (pData.status === 'ok') {
@@ -38,7 +39,7 @@ function ViewHardware() {
                 }
             }
 
-            const hRes = await fetch(`${import.meta.env.VITE_API_URL}/hardware/list`, { headers: { 'Authorization': `Bearer ${token}` } })
+            const hRes = await fetch(`${API_BASE}/hardware/list`, { headers: { 'Authorization': `Bearer ${token}` } })
             const hData = await hRes.json()
             if (hData.status === 'ok') {
                 setHardware(hData.hardware)
@@ -61,7 +62,7 @@ function ViewHardware() {
         if (!selectedProject) { setMsg(hw_id, 'Select a project first.'); return }
         
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/transactions/check_out`, {
+            const res = await fetch(`${API_BASE}/transactions/check_out`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ project_id: selectedProject, hw_id: hw_id, quantity: qty })
@@ -82,7 +83,7 @@ function ViewHardware() {
         if (!selectedProject) { setMsg(hw_id, 'Select a project first.'); return }
 
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/transactions/check_in`, {
+            const res = await fetch(`${API_BASE}/transactions/check_in`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ project_id: selectedProject, hw_id: hw_id, quantity: qty })
@@ -100,7 +101,7 @@ function ViewHardware() {
     const handleReset = async (hw_id, name, checkedOutAmount) => {
         if (!checkedOutAmount || !selectedProject) return;
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/transactions/check_in`, {
+            const res = await fetch(`${API_BASE}/transactions/check_in`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ project_id: selectedProject, hw_id: hw_id, quantity: checkedOutAmount })

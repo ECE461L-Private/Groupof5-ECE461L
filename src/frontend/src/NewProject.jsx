@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
+import { API_BASE } from './apiBase'
 
 const logActivity = async (msg, token) => {
     try {
-        await fetch(`${import.meta.env.VITE_API_URL}/logs/add`, {
+        await fetch(`${API_BASE}/logs/add`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ message: msg })
@@ -26,7 +27,7 @@ function NewProject() {
     const fetchProjects = async () => {
         if (!token) return;
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/get_projects`, {
+            const res = await fetch(`${API_BASE}/projects/get_projects`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
             const data = await res.json()
@@ -57,7 +58,7 @@ function NewProject() {
         }
 
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/create`, {
+            const res = await fetch(`${API_BASE}/projects/create`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ name: projectName.trim() })
@@ -80,7 +81,7 @@ function NewProject() {
         if (!joinId.trim()) return
 
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/join`, {
+            const res = await fetch(`${API_BASE}/projects/join`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ project_id: joinId.trim() })
@@ -99,7 +100,7 @@ function NewProject() {
     const handleLeave = async (id, name) => {
         if (!window.confirm(`Are you sure you want to leave ${name}?`)) return
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/leave`, {
+            const res = await fetch(`${API_BASE}/projects/leave`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ project_id: id })
@@ -117,7 +118,7 @@ function NewProject() {
     const handleDelete = async (id, name) => {
         if (!window.confirm(`Delete project "${name}"? This action cannot be undone.`)) return
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/delete`, {
+            const res = await fetch(`${API_BASE}/projects/delete`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ project_id: id })

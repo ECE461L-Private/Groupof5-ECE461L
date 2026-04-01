@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from './AuthContext'
+import { API_BASE } from './apiBase'
 
 function CreateAccount() {
     const [userid, setUserid] = useState('')
@@ -24,7 +25,7 @@ function CreateAccount() {
             return
         }
 
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/add_user`, {
+        const response = await fetch(`${API_BASE}/auth/add_user`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username: userid, password: password })

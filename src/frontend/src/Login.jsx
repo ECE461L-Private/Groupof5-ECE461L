@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from './AuthContext'
+import { API_BASE } from './apiBase'
 
 function Login() {
     const [userid, setUserid] = useState('')
@@ -19,7 +20,7 @@ function Login() {
         }
 
         // Call your Flask backend
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
+        const response = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username: userid, password: password })
