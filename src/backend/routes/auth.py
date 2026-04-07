@@ -18,7 +18,7 @@ def login():
 
     Expects JSON: { "username": str, "password": str }
     """
-    data = request.get_json()
+    data = request.get_json() or {}
     username = data.get("username")
     password = data.get("password")
 
@@ -60,7 +60,7 @@ def add_user():
 
     Expects JSON: { "username": str, "password": str }
     """
-    data = request.get_json()
+    data = request.get_json() or {}
     username = data.get("username")
     password = data.get("password")
 
@@ -95,6 +95,56 @@ def add_user():
         "message": f"User '{username}' created successfully",
         "access_token": access_token
     }), 201 # Successful Creation
+
+
+@auth_bp.route("/change_password", methods=["POST"])
+@jwt_required()
+def change_password():
+    """
+    Change the authenticated user's password.
+
+    Expects JSON: { "current_password": str, "new_password": str }
+    """
+    data = request.get_json() or {}
+    current_password = data.get("current_password")
+    new_password = data.get("new_password")
+    username = get_jwt_identity()
+
+    if not current_password or not new_password:
+        return jsonify({
+            "status": "error",
+            "message": "Current password and new password are required",
+        }), 400
+
+    user = current_app.db.users.find_one({"username": username})
+    if not user:
+        return jsonify({
+            "status": "error",
+            "message": "User not found",
+        }), 404
+
+    if not bcrypt.checkpw(current_password.encode("utf-8"), user["password"]):
+        return jsonify({
+            "status": "error",
+            "message": "Current password is incorrect",
+        }), 401
+
+    if bcrypt.checkpw(new_password.encode("utf-8"), user["password"]):
+        return jsonify({
+            "status": "error",
+            "message": "New password must be different from the current password",
+        }), 400
+
+    hashed_password = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt())
+    current_app.db.users.update_one(
+        {"username": username},
+        {"$set": {"password": hashed_password}},
+    )
+
+    return jsonify({
+        "status": "ok",
+        "message": "Password changed successfully",
+    }), 200
 
 @auth_bp.route("/me", methods=["GET"])
 @jwt_required()

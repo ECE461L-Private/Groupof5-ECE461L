@@ -107,3 +107,22 @@ class TestErrorAndConsistencyFlows:
 
         assert all(resp.content_type == "application/json" for resp in responses)
         assert all(resp.get_json()["status"] == "ok" for resp in responses)
+
+    def test_change_password_flow_invalidates_old_password_and_keeps_profile_access(self, client):
+        register = client.post("/auth/add_user", json={"username": "pw_user", "password": "pass12345"})
+        token = register.get_json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        change = client.post(
+            "/auth/change_password",
+            headers=headers,
+            json={"current_password": "pass12345", "new_password": "pass67890"},
+        )
+        old_login = client.post("/auth/login", json={"username": "pw_user", "password": "pass12345"})
+        new_login = client.post("/auth/login", json={"username": "pw_user", "password": "pass67890"})
+        profile = client.get("/auth/me", headers=headers)
+
+        assert change.status_code == 200
+        assert old_login.status_code == 401
+        assert new_login.status_code == 200
+        assert profile.status_code == 200

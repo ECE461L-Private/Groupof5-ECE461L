@@ -94,3 +94,84 @@ class TestMeEndpoint:
 
         assert resp.status_code == 404
         assert resp.get_json()["message"] == "User not found"
+
+
+class TestChangePasswordEndpoint:
+    def test_change_password_updates_stored_password_and_allows_new_login(self, client, auth_headers):
+        headers = auth_headers("changer", "oldpass123")
+
+        resp = client.post(
+            "/auth/change_password",
+            headers=headers,
+            json={"current_password": "oldpass123", "new_password": "newpass456"},
+        )
+
+        old_login = client.post("/auth/login", json={"username": "changer", "password": "oldpass123"})
+        new_login = client.post("/auth/login", json={"username": "changer", "password": "newpass456"})
+
+        assert resp.status_code == 200
+        assert resp.get_json()["status"] == "ok"
+        assert old_login.status_code == 401
+        assert new_login.status_code == 200
+
+    def test_change_password_requires_current_password(self, client, auth_headers):
+        headers = auth_headers("needs_current", "pw123456")
+
+        resp = client.post(
+            "/auth/change_password",
+            headers=headers,
+            json={"new_password": "newpass456"},
+        )
+
+        assert resp.status_code == 400
+
+    def test_change_password_requires_new_password(self, client, auth_headers):
+        headers = auth_headers("needs_new", "pw123456")
+
+        resp = client.post(
+            "/auth/change_password",
+            headers=headers,
+            json={"current_password": "pw123456"},
+        )
+
+        assert resp.status_code == 400
+
+    def test_change_password_rejects_incorrect_current_password(self, client, auth_headers):
+        headers = auth_headers("wrong_current", "pw123456")
+
+        resp = client.post(
+            "/auth/change_password",
+            headers=headers,
+            json={"current_password": "badpass", "new_password": "newpass456"},
+        )
+
+        assert resp.status_code == 401
+        assert resp.get_json()["message"] == "Current password is incorrect"
+
+    def test_change_password_requires_different_new_password(self, client, auth_headers):
+        headers = auth_headers("same_password", "pw123456")
+
+        resp = client.post(
+            "/auth/change_password",
+            headers=headers,
+            json={"current_password": "pw123456", "new_password": "pw123456"},
+        )
+
+        assert resp.status_code == 400
+        assert resp.get_json()["message"] == "New password must be different from the current password"
+
+    def test_change_password_returns_404_for_deleted_user(self, client, app, auth_headers):
+        headers = auth_headers("missing_user", "pw123456")
+        app.db.users.delete_one({"username": "missing_user"})
+
+        resp = client.post(
+            "/auth/change_password",
+            headers=headers,
+            json={"current_password": "pw123456", "new_password": "newpass456"},
+        )
+
+        assert resp.status_code == 404
+        assert resp.get_json()["message"] == "User not found"
+
+    def test_change_password_wrong_method_returns_405(self, client):
+        assert client.get("/auth/change_password").status_code == 405

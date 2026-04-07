@@ -44,7 +44,6 @@ describe('MyProfile Component', () => {
     })
 
     it('renders empty states and handles action buttons', async () => {
-        const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
         global.fetch = vi.fn(() =>
             Promise.resolve({
                 json: () =>
@@ -61,10 +60,10 @@ describe('MyProfile Component', () => {
         expect(screen.getByText(/no hardware usage/i)).toBeInTheDocument()
 
         await userEvent.click(screen.getByRole('button', { name: /change password/i }))
+        expect(screen.getByPlaceholderText(/current password/i)).toBeInTheDocument()
         await userEvent.click(screen.getByRole('button', { name: /logout/i }))
         await userEvent.click(screen.getByRole('button', { name: /back to dashboard/i }))
 
-        expect(alertSpy).toHaveBeenCalledWith('Change password functionality coming soon!')
         expect(mockNavigate).toHaveBeenCalledWith('/login')
         expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
     })
@@ -108,5 +107,114 @@ describe('MyProfile Component', () => {
 
         renderWithProviders(<MyProfile />, { token: 'token-123', username: 'shaun' })
         expect(await screen.findByText(/loading.../i)).toBeInTheDocument()
+    })
+
+    it('changes the password successfully', async () => {
+        global.fetch = vi
+            .fn()
+            .mockResolvedValueOnce({
+                json: () =>
+                    Promise.resolve({
+                        status: 'ok',
+                        data: { username: 'shaun', projects: [], usage: [] },
+                    }),
+            })
+            .mockResolvedValueOnce({
+                json: () =>
+                    Promise.resolve({
+                        status: 'ok',
+                        message: 'Password changed successfully',
+                    }),
+            })
+
+        renderWithProviders(<MyProfile />, { token: 'token-123', username: 'shaun' })
+        await screen.findByText(/you have not joined any projects yet/i)
+
+        await userEvent.click(screen.getByRole('button', { name: /change password/i }))
+        await userEvent.type(screen.getByPlaceholderText(/current password/i), 'oldpass123')
+        await userEvent.type(screen.getByPlaceholderText(/^new password$/i), 'newpass456')
+        await userEvent.type(screen.getByPlaceholderText(/confirm new password/i), 'newpass456')
+        await userEvent.click(screen.getByRole('button', { name: /save new password/i }))
+
+        expect(global.fetch).toHaveBeenNthCalledWith(
+            2,
+            '/api/auth/change_password',
+            expect.objectContaining({
+                method: 'POST',
+                headers: expect.objectContaining({
+                    Authorization: 'Bearer token-123',
+                    'Content-Type': 'application/json',
+                }),
+                body: JSON.stringify({
+                    current_password: 'oldpass123',
+                    new_password: 'newpass456',
+                }),
+            })
+        )
+        expect(await screen.findByText(/password changed successfully\./i)).toBeInTheDocument()
+        expect(screen.queryByPlaceholderText(/current password/i)).not.toBeInTheDocument()
+    })
+
+    it('validates password form input and shows API errors', async () => {
+        global.fetch = vi
+            .fn()
+            .mockResolvedValueOnce({
+                json: () =>
+                    Promise.resolve({
+                        status: 'ok',
+                        data: { username: 'shaun', projects: [], usage: [] },
+                    }),
+            })
+            .mockResolvedValueOnce({
+                json: () =>
+                    Promise.resolve({
+                        status: 'error',
+                        message: 'Current password is incorrect',
+                    }),
+            })
+
+        renderWithProviders(<MyProfile />, { token: 'token-123', username: 'shaun' })
+        await screen.findByText(/you have not joined any projects yet/i)
+
+        await userEvent.click(screen.getByRole('button', { name: /change password/i }))
+        await userEvent.click(screen.getByRole('button', { name: /save new password/i }))
+        expect(await screen.findByText(/all password fields are required\./i)).toBeInTheDocument()
+
+        await userEvent.type(screen.getByPlaceholderText(/current password/i), 'oldpass123')
+        await userEvent.type(screen.getByPlaceholderText(/^new password$/i), 'newpass456')
+        await userEvent.type(screen.getByPlaceholderText(/confirm new password/i), 'mismatch')
+        await userEvent.click(screen.getByRole('button', { name: /save new password/i }))
+        expect(await screen.findByText(/new passwords do not match\./i)).toBeInTheDocument()
+
+        await userEvent.clear(screen.getByPlaceholderText(/confirm new password/i))
+        await userEvent.type(screen.getByPlaceholderText(/confirm new password/i), 'newpass456')
+        await userEvent.click(screen.getByRole('button', { name: /save new password/i }))
+        expect(await screen.findByText(/current password is incorrect/i)).toBeInTheDocument()
+    })
+
+    it('handles password change request failures', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+        global.fetch = vi
+            .fn()
+            .mockResolvedValueOnce({
+                json: () =>
+                    Promise.resolve({
+                        status: 'ok',
+                        data: { username: 'shaun', projects: [], usage: [] },
+                    }),
+            })
+            .mockRejectedValueOnce(new Error('nope'))
+
+        renderWithProviders(<MyProfile />, { token: 'token-123', username: 'shaun' })
+        await screen.findByText(/you have not joined any projects yet/i)
+
+        await userEvent.click(screen.getByRole('button', { name: /change password/i }))
+        await userEvent.type(screen.getByPlaceholderText(/current password/i), 'oldpass123')
+        await userEvent.type(screen.getByPlaceholderText(/^new password$/i), 'newpass456')
+        await userEvent.type(screen.getByPlaceholderText(/confirm new password/i), 'newpass456')
+        await userEvent.click(screen.getByRole('button', { name: /save new password/i }))
+
+        expect(await screen.findByText(/unable to change password\./i)).toBeInTheDocument()
+        expect(errorSpy).toHaveBeenCalledWith('Failed to change password', expect.any(Error))
     })
 })

@@ -9,6 +9,12 @@ function MyProfile() {
     const [user, setUser] = useState({ username: '' })
     const [projects, setProjects] = useState([])
     const [usage, setUsage] = useState([])
+    const [showPasswordForm, setShowPasswordForm] = useState(false)
+    const [currentPassword, setCurrentPassword] = useState('')
+    const [newPassword, setNewPassword] = useState('')
+    const [confirmPassword, setConfirmPassword] = useState('')
+    const [passwordError, setPasswordError] = useState('')
+    const [passwordSuccess, setPasswordSuccess] = useState('')
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -31,6 +37,51 @@ function MyProfile() {
     const handleLogout = () => {
         logout()
         navigate('/login')
+    }
+
+    const handlePasswordSubmit = async (event) => {
+        event.preventDefault()
+        setPasswordError('')
+        setPasswordSuccess('')
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            setPasswordError('All password fields are required.')
+            return
+        }
+
+        if (newPassword !== confirmPassword) {
+            setPasswordError('New passwords do not match.')
+            return
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/auth/change_password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword,
+                }),
+            })
+            const json = await res.json()
+
+            if (json.status === 'ok') {
+                setPasswordSuccess('Password changed successfully.')
+                setCurrentPassword('')
+                setNewPassword('')
+                setConfirmPassword('')
+                setShowPasswordForm(false)
+                return
+            }
+
+            setPasswordError(json.message || 'Unable to change password.')
+        } catch (error) {
+            console.error('Failed to change password', error)
+            setPasswordError('Unable to change password.')
+        }
     }
 
     return (
@@ -80,10 +131,14 @@ function MyProfile() {
                     <ul style={{ listStyleType: 'none', padding: 0, margin: '10px 0' }}>
                         <li style={{ marginBottom: '10px' }}>
                             <button
-                                onClick={() => alert('Change password functionality coming soon!')}
+                                onClick={() => {
+                                    setShowPasswordForm((value) => !value)
+                                    setPasswordError('')
+                                    setPasswordSuccess('')
+                                }}
                                 style={{ background: 'none', border: 'none', color: '#007bff', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: '14px' }}
                             >
-                                Change Password
+                                {showPasswordForm ? 'Cancel Password Change' : 'Change Password'}
                             </button>
                         </li>
                         <li>
@@ -95,6 +150,38 @@ function MyProfile() {
                             </button>
                         </li>
                     </ul>
+                    {showPasswordForm && (
+                        <form onSubmit={handlePasswordSubmit}>
+                            <input
+                                type="password"
+                                placeholder="Current Password"
+                                value={currentPassword}
+                                onChange={(event) => setCurrentPassword(event.target.value)}
+                                style={{ width: '100%', marginBottom: '8px' }}
+                            />
+                            <input
+                                type="password"
+                                placeholder="New Password"
+                                value={newPassword}
+                                onChange={(event) => setNewPassword(event.target.value)}
+                                style={{ width: '100%', marginBottom: '8px' }}
+                            />
+                            <input
+                                type="password"
+                                placeholder="Confirm New Password"
+                                value={confirmPassword}
+                                onChange={(event) => setConfirmPassword(event.target.value)}
+                                style={{ width: '100%', marginBottom: '8px' }}
+                            />
+                            <button type="submit">Save New Password</button>
+                        </form>
+                    )}
+                    {passwordError && (
+                        <p style={{ color: 'red', fontSize: '13px', marginTop: '8px' }}>{passwordError}</p>
+                    )}
+                    {passwordSuccess && (
+                        <p style={{ color: 'green', fontSize: '13px', marginTop: '8px' }}>{passwordSuccess}</p>
+                    )}
                 </div>
 
                 <button onClick={() => navigate('/dashboard')} style={{ backgroundColor: '#ccc', color: '#333', marginTop: '10px' }}>
