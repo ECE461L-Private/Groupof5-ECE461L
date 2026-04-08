@@ -94,4 +94,18 @@ describe('CreateAccount Component', () => {
             expect(screen.getByText(/username already exists/i)).toBeInTheDocument()
         })
     })
+
+    it('shows a friendly message when account creation fails', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+        global.fetch = vi.fn().mockRejectedValue(new Error('network down'))
+
+        renderWithProviders(<CreateAccount />)
+        await userEvent.type(screen.getByPlaceholderText('User ID'), 'alice')
+        await userEvent.type(screen.getByPlaceholderText('Password'), 'pass123')
+        await userEvent.type(screen.getByPlaceholderText('Confirm Password'), 'pass123')
+        await userEvent.click(screen.getByRole('button', { name: /create account/i }))
+
+        expect(await screen.findByText(/unable to create account\. please try again\./i)).toBeInTheDocument()
+        expect(errorSpy).toHaveBeenCalledWith('Failed to create account', expect.any(Error))
+    })
 })

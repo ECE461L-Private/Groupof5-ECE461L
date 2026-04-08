@@ -25,18 +25,23 @@ function CreateAccount() {
             return
         }
 
-        const response = await fetch(`${API_BASE}/auth/add_user`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: userid, password: password })
-        })
-        const data = await response.json()
-        if (data.status === 'ok') {
-            login(data.access_token, userid)
-            setError('Account created!')
-            navigate('/dashboard')
-        } else {
-            setError(data.message)
+        try {
+            const response = await fetch(`${API_BASE}/auth/add_user`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: userid, password: password })
+            })
+            const data = await response.json()
+            if (data.status === 'ok') {
+                login(data.access_token, userid)
+                setError('Account created!')
+                navigate('/dashboard')
+            } else {
+                setError(data.message)
+            }
+        } catch (err) {
+            console.error('Failed to create account', err)
+            setError('Unable to create account. Please try again.')
         }
     }
 

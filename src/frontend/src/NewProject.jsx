@@ -15,14 +15,13 @@ const logActivity = async (msg, token) => {
 
 function NewProject() {
     const [projectName, setProjectName] = useState('')
-    const [description, setDescription] = useState('')
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
     const [projects, setProjects] = useState([])
     const [joinId, setJoinId] = useState('')
     const [joinError, setJoinError] = useState('')
     const navigate = useNavigate()
-    const { token } = useAuth()
+    const { token, username } = useAuth()
 
     const fetchProjects = async () => {
         if (!token) return;
@@ -35,8 +34,8 @@ function NewProject() {
                 const mapped = data.projects.map(p => ({
                     id: p.project_id,
                     name: p.name,
-                    description: `Owner: ${p.owner}`,
-                    joined: p.joined ?? true
+                    owner: p.owner,
+                    isOwner: p.owner === username
                 }))
                 setProjects(mapped)
             }
@@ -45,7 +44,7 @@ function NewProject() {
 
     useEffect(() => {
         fetchProjects()
-    }, [token])
+    }, [token, username])
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -69,7 +68,6 @@ function NewProject() {
                 setSuccess(`Project "${projectName}" created! ID: ${data.project_id}`)
                 fetchProjects()
                 setProjectName('')
-                setDescription('')
             } else {
                 setError(data.message)
             }
@@ -148,12 +146,6 @@ function NewProject() {
                             value={projectName}
                             onChange={(e) => setProjectName(e.target.value)}
                         />
-                        <textarea
-                            placeholder="Description (optional)"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            rows={3}
-                        />
                         <button type="submit">Create Project</button>
                     </form>
 
@@ -183,22 +175,23 @@ function NewProject() {
 
                 {projects.length > 0 && (
                     <div className="project-list-box">
-                        <h3>Your Projects ({projects.filter(p => p.joined).length} joined)</h3>
+                        <h3>Your Projects ({projects.length} joined)</h3>
                         {projects.map(p => (
                             <div className="project-item" key={p.id}>
                                 <div className="project-item-info">
                                     <strong>{p.name}</strong>
                                     <span className="project-id">ID: {p.id}</span>
-                                    {p.description && <span className="project-desc">{p.description}</span>}
-                                    <span className="project-date">Created: {p.createdAt}</span>
+                                    <span className="project-desc">Owner: {p.owner}</span>
                                 </div>
                                 <div className="project-item-actions">
-                                    {p.joined ? (
-                                        <span className="badge-joined">Joined</span>
+                                    {p.isOwner ? (
+                                        <span className="badge-joined">Owner</span>
                                     ) : (
                                         <button className="btn-small btn-grey" onClick={() => handleLeave(p.id, p.name)}>Leave</button>
                                     )}
-                                    <button className="btn-small btn-red" onClick={() => handleDelete(p.id, p.name)}>Delete</button>
+                                    {p.isOwner && (
+                                        <button className="btn-small btn-red" onClick={() => handleDelete(p.id, p.name)}>Delete</button>
+                                    )}
                                 </div>
                             </div>
                         ))}

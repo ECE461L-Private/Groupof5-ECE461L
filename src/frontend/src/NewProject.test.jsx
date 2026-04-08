@@ -60,7 +60,6 @@ describe('NewProject Component', () => {
         expect(await screen.findByText(/your projects/i)).toBeInTheDocument()
 
         await userEvent.type(screen.getByPlaceholderText('Project Name'), 'Beta')
-        await userEvent.type(screen.getByPlaceholderText('Description (optional)'), 'Important description')
         await userEvent.click(screen.getByRole('button', { name: /create project/i }))
         expect(await screen.findByText(/project "Beta" created!/i)).toBeInTheDocument()
 
@@ -84,8 +83,8 @@ describe('NewProject Component', () => {
                     Promise.resolve({
                         status: 'ok',
                         projects: [
-                            { project_id: 'proj_1', name: 'Alpha', owner: 'shaun', joined: false },
-                            { project_id: 'proj_2', name: 'Beta', owner: 'shaun', joined: true },
+                            { project_id: 'proj_1', name: 'Alpha', owner: 'alex' },
+                            { project_id: 'proj_2', name: 'Beta', owner: 'shaun' },
                         ],
                     }),
             })
@@ -95,7 +94,7 @@ describe('NewProject Component', () => {
                 json: () =>
                     Promise.resolve({
                         status: 'ok',
-                        projects: [{ project_id: 'proj_2', name: 'Beta', owner: 'shaun', joined: true }],
+                        projects: [{ project_id: 'proj_2', name: 'Beta', owner: 'shaun' }],
                     }),
             })
             .mockResolvedValueOnce({ json: () => Promise.resolve({ status: 'ok' }) })
@@ -125,8 +124,8 @@ describe('NewProject Component', () => {
                     Promise.resolve({
                         status: 'ok',
                         projects: [
-                            { project_id: 'proj_1', name: 'Alpha', owner: 'shaun', joined: false },
-                            { project_id: 'proj_2', name: 'Beta', owner: 'shaun', joined: true },
+                            { project_id: 'proj_1', name: 'Alpha', owner: 'alex' },
+                            { project_id: 'proj_2', name: 'Beta', owner: 'shaun' },
                         ],
                     }),
             })
@@ -209,7 +208,10 @@ describe('NewProject Component', () => {
                 json: () =>
                     Promise.resolve({
                         status: 'ok',
-                        projects: [{ project_id: 'proj_1', name: 'Alpha', owner: 'shaun', joined: false }],
+                        projects: [
+                            { project_id: 'proj_1', name: 'Alpha', owner: 'alex' },
+                            { project_id: 'proj_2', name: 'Beta', owner: 'shaun' },
+                        ],
                     }),
             })
             .mockRejectedValueOnce(new Error('leave failed'))
@@ -247,7 +249,7 @@ describe('NewProject Component', () => {
                 json: () =>
                     Promise.resolve({
                         status: 'ok',
-                        projects: [{ project_id: 'proj_1', name: 'Alpha', owner: 'shaun', joined: false }],
+                        projects: [{ project_id: 'proj_1', name: 'Alpha', owner: 'alex' }],
                     }),
             })
 
