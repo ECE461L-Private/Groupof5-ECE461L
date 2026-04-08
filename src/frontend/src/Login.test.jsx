@@ -91,4 +91,17 @@ describe('Login Component', () => {
         })
         expect(screen.queryByText(/please fill in all fields/i)).not.toBeInTheDocument()
     })
+
+    it('shows a friendly message when the request fails', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+        global.fetch = vi.fn().mockRejectedValue(new Error('network down'))
+
+        renderWithProviders(<Login />)
+        await userEvent.type(screen.getByPlaceholderText('User ID'), 'bob')
+        await userEvent.type(screen.getByPlaceholderText('Password'), 'pass')
+        await userEvent.click(screen.getByRole('button', { name: /login/i }))
+
+        expect(await screen.findByText(/unable to log in\. please try again\./i)).toBeInTheDocument()
+        expect(errorSpy).toHaveBeenCalledWith('Failed to log in', expect.any(Error))
+    })
 })

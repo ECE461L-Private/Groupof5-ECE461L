@@ -19,20 +19,24 @@ function Login() {
             return
         }
 
-        // Call your Flask backend
-        const response = await fetch(`${API_BASE}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: userid, password: password })
-        })
-        const data = await response.json()
-        if (data.status === 'ok') {
-            login(data.access_token, userid)
-            setError('Login successful!')      // redirect on success
-            navigate('/dashboard')
-        }
-        else {
-            setError(data.message)      // show backend error message
+        try {
+            const response = await fetch(`${API_BASE}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: userid, password: password })
+            })
+            const data = await response.json()
+            if (data.status === 'ok') {
+                login(data.access_token, userid)
+                setError('Login successful!')
+                navigate('/dashboard')
+            }
+            else {
+                setError(data.message)
+            }
+        } catch (err) {
+            console.error('Failed to log in', err)
+            setError('Unable to log in. Please try again.')
         }
     }
 
